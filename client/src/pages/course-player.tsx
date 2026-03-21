@@ -63,7 +63,7 @@ import {
 } from "lucide-react";
 
 function getBuyerToken(): string {
-  const key = "lumina_buyer_token";
+  const key = "fundi_buyer_token";
   let token = localStorage.getItem(key);
   if (!token) {
     token = `buyer_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -1270,7 +1270,7 @@ export default function CoursePlayer() {
                         <GraduationCap className="w-7 h-7 text-amber-400" />
                       </div>
                     </div>
-                    <p className="text-xs font-bold tracking-[0.35em] uppercase text-[#1c2852] mb-0.5">Lumina Wealth Academy</p>
+                    <p className="text-xs font-bold tracking-[0.35em] uppercase text-[#1c2852] mb-0.5">Fundi Academy</p>
                     <p className="text-[10px] italic tracking-wider text-amber-600 mb-1">Excellence in Education</p>
                     <div className="w-48 h-px mx-auto bg-gradient-to-r from-transparent via-amber-400 to-transparent mb-4" />
                     <p className="text-base font-serif font-bold tracking-[0.2em] uppercase text-[#1c2852] mb-5">
@@ -1471,7 +1471,7 @@ export default function CoursePlayer() {
                 <div className="rounded-2xl border border-border/50 bg-card shadow-sm p-6">
                   <h3 className="font-semibold text-base mb-1 flex items-center gap-2">
                     <Shield className="w-5 h-5 text-primary" />
-                    Lumina Wealth Honor Code
+                    Fundi Honor Code
                     <a href="#" className="text-sm text-blue-600 font-normal inline-flex items-center gap-1 ml-auto">Learn more <ExternalLink className="w-3 h-3" /></a>
                   </h3>
                   <div className="flex items-start gap-3 mt-4">
@@ -1482,7 +1482,7 @@ export default function CoursePlayer() {
                       data-testid="checkbox-honor-code"
                     />
                     <label htmlFor="honor-code" className="text-sm leading-relaxed cursor-pointer">
-                      I, <span className="font-semibold">{user?.firstName || user?.email || "Student"}</span>, understand that submitting work that isn't my own may result in permanent failure of this course or deactivation of my Lumina Wealth account.*
+                      I, <span className="font-semibold">{user?.firstName || user?.email || "Student"}</span>, understand that submitting work that isn't my own may result in permanent failure of this course or deactivation of my Fundi account.*
                     </label>
                   </div>
                   {!honorCodeAccepted && (

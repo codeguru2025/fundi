@@ -94,7 +94,7 @@ export default function Store() {
           <div className="text-center py-16">
             <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
             <h2 className="text-2xl font-serif font-bold text-primary mb-2">No Books Yet</h2>
-            <p className="text-muted-foreground mb-6">Be the first to publish your masterpiece on Lumina.</p>
+            <p className="text-muted-foreground mb-6">Be the first to publish your masterpiece on Fundi.</p>
             <Button asChild>
               <Link href="/editor">Publish Your Book</Link>
             </Button>

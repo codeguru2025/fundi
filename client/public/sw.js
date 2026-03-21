@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lumina-v1';
+const CACHE_NAME = 'fundi-v1';
 const APP_SHELL = [
   '/',
   '/index.html',

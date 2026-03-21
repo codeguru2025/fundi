@@ -48,7 +48,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       const baseUrl = `${protocol}://${host}`;
       paynow.resultUrl = `${baseUrl}/api/payments/callback`;
       paynow.returnUrl = `${baseUrl}/book/${bookId}?payment=success`;
-      const payment = paynow.createPayment(`Book_${bookId}_${Date.now()}`, email || 'customer@lumina.app');
+      const payment = paynow.createPayment(`Book_${bookId}_${Date.now()}`, email || 'customer@fundi.app');
       payment.add(book.title, book.price);
       let response;
       if (paymentMethod === 'ecocash' && phone) response = await paynow.sendMobile(payment, phone, 'ecocash');
@@ -142,7 +142,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       const baseUrl = `${protocol}://${host}`;
       paynow.resultUrl = `${baseUrl}/api/courses/payments/callback`;
       paynow.returnUrl = `${baseUrl}/course/${courseId}?payment=success`;
-      const payment = paynow.createPayment(`Course_${courseId}_${Date.now()}`, email || 'customer@lumina.app');
+      const payment = paynow.createPayment(`Course_${courseId}_${Date.now()}`, email || 'customer@fundi.app');
       payment.add(course.title, course.price);
       let response;
       if (paymentMethod === 'ecocash' && phone) response = await paynow.sendMobile(payment, phone, 'ecocash');

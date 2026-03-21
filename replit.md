@@ -1,8 +1,8 @@
-# Lumina Wealth - Books & Courses Platform
+# Fundi - Books & Courses Platform
 
 ## Overview
 
-Lumina Wealth is a web application for generating passive income through ebook publishing and online courses. Users upload manuscripts (DOCX, PDF, TXT, EPUB, HTML) or create courses with video/text lessons, customize metadata, and publish to an integrated marketplace. Includes Paynow payment integration (web, Ecocash, OneMoney), automated ebook conversion pipeline (to EPUB via Calibre/Pandoc), and a Kindle-like EPUB reader with epub.js. Philosophy: "Make money while you sleep."
+Fundi is a web application for generating passive income through ebook publishing and online courses. Users upload manuscripts (DOCX, PDF, TXT, EPUB, HTML) or create courses with video/text lessons, customize metadata, and publish to an integrated marketplace. Includes Paynow payment integration (web, Ecocash, OneMoney), automated ebook conversion pipeline (to EPUB via Calibre/Pandoc), and a Kindle-like EPUB reader with epub.js. Philosophy: "Make money while you sleep."
 
 ## User Preferences
 

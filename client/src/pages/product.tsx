@@ -13,7 +13,7 @@ import { PaymentDialog } from "@/components/payment-dialog";
 import { useAuth } from "@/hooks/use-auth";
 
 function getBuyerToken(): string {
-  const key = "lumina_buyer_token";
+  const key = "fundi_buyer_token";
   let token = localStorage.getItem(key);
   if (!token) {
     token = `buyer_${Date.now()}_${Math.random().toString(36).slice(2)}`;

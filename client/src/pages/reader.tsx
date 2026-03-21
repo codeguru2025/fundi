@@ -22,11 +22,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { EpubReader } from "@/components/epub-reader";
 
-const STORAGE_KEY = "lumina_library";
-const POSITION_KEY = "lumina_reading_positions";
+const STORAGE_KEY = "fundi_library";
+const POSITION_KEY = "fundi_reading_positions";
 
 function getBuyerToken(): string | null {
-  return localStorage.getItem("lumina_buyer_token");
+  return localStorage.getItem("fundi_buyer_token");
 }
 
 async function checkPurchaseFromServer(bookId: string, buyerToken: string): Promise<boolean> {
@@ -192,7 +192,7 @@ export default function ReaderPage() {
   const [hasServerAccess, setHasServerAccess] = useState(false);
 
   useEffect(() => {
-    const savedSettings = localStorage.getItem("lumina_reader_settings");
+    const savedSettings = localStorage.getItem("fundi_reader_settings");
     if (savedSettings) {
       setSettings(JSON.parse(savedSettings));
     }
@@ -264,7 +264,7 @@ export default function ReaderPage() {
   }, [currentPage, params.id, hasAccess]);
 
   useEffect(() => {
-    localStorage.setItem("lumina_reader_settings", JSON.stringify(settings));
+    localStorage.setItem("fundi_reader_settings", JSON.stringify(settings));
   }, [settings]);
 
   const saveForOffline = () => {

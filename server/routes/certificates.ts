@@ -121,7 +121,7 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
       const baseUrl = `${protocol}://${host}`;
       paynow.resultUrl = `${baseUrl}/api/certificates/payments/callback`;
       paynow.returnUrl = `${baseUrl}/course/${courseId}/learn?tab=certificate&payment=success`;
-      const payerEmail = email || (req.user as any)?.email || 'student@lumina.app';
+      const payerEmail = email || (req.user as any)?.email || 'student@fundi.app';
       const certFee = course.certificateFee ?? DEFAULT_CERTIFICATE_FEE;
       const payment = paynow.createPayment(`Cert_${courseId}_${userId}_${Date.now()}`, payerEmail);
       payment.add(`Certificate: ${course.title}`, certFee);

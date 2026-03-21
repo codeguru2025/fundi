@@ -87,7 +87,7 @@ export default function Editor() {
               Publish Your Masterpiece
             </h1>
             <p className="text-muted-foreground mb-8 text-lg leading-relaxed">
-              Sign in to upload your manuscript and publish it to the Lumina Wealth store. 
+              Sign in to upload your manuscript and publish it to the Fundi store. 
               Your first book is free, then just $25 per upload with a small monthly subscription.
             </p>
             <Button asChild size="lg" className="text-lg px-8" data-testid="button-signin-to-publish">
@@ -504,11 +504,11 @@ function MetadataStep() {
 }
 
 function getOrCreateAuthorId(): string {
-  let authorId = localStorage.getItem("lumina_author_id");
+  let authorId = localStorage.getItem("fundi_author_id");
   if (!authorId) {
     // Check if there's an existing author claim from previous sessions
     authorId = "author_manual_owner_001";
-    localStorage.setItem("lumina_author_id", authorId);
+    localStorage.setItem("fundi_author_id", authorId);
   }
   return authorId;
 }
@@ -576,7 +576,7 @@ function PublishStep() {
       category: category,
       rating: 0,
       bestseller: false,
-      description: description || `${manuscript.title} - A new release on Lumina.`,
+      description: description || `${manuscript.title} - A new release on Fundi.`,
       authorId: authorId,
       fileType: manuscript.fileType,
     };
@@ -611,7 +611,7 @@ function PublishStep() {
       toast({
         title: isApproved ? "Published!" : "Submitted for Review!",
         description: isApproved
-          ? "Your ebook is now live on the Lumina marketplace."
+          ? "Your ebook is now live on the Fundi marketplace."
           : "Your ebook has been submitted and will appear in the store after admin approval.",
       });
       setLocation(isApproved ? "/store" : "/dashboard");
@@ -766,7 +766,7 @@ function PublishStep() {
             <>Complete all steps to publish</>
           ) : (
             <>
-              <Store className="mr-2 h-5 w-5" /> Publish to Lumina Marketplace
+              <Store className="mr-2 h-5 w-5" /> Publish to Fundi Marketplace
             </>
           )}
         </Button>

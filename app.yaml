@@ -1,0 +1,51 @@
+name: fundi
+services:
+- name: fundi-web
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: codeguru2025/fundi
+  build_command: npm run build
+  run_command: npm start
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: PORT
+    value: "5000"
+  - key: APP_URL
+    value: "" # e.g. https://fundi-xxxxx.ondigitalocean.app
+  - key: DATABASE_URL
+    value: "" # From Supabase (pooled)
+    type: SECRET
+  - key: SESSION_SECRET
+    value: "" # Random 64 char string
+    type: SECRET
+  - key: GOOGLE_CLIENT_ID
+    value: ""
+    type: SECRET
+  - key: GOOGLE_CLIENT_SECRET
+    value: ""
+    type: SECRET
+  - key: DEFAULT_ADMIN_EMAIL
+    value: ""
+  - key: DO_SPACES_KEY
+    value: ""
+    type: SECRET
+  - key: DO_SPACES_SECRET
+    value: ""
+    type: SECRET
+  - key: DO_SPACES_BUCKET
+    value: fundi-content
+  - key: DO_SPACES_REGION
+    value: ams3
+  - key: PAYNOW_INTEGRATION_ID
+    value: ""
+    type: SECRET
+  - key: PAYNOW_INTEGRATION_KEY
+    value: ""
+    type: SECRET
+  - key: LOG_LEVEL
+    value: info

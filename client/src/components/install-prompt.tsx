@@ -24,7 +24,7 @@ export function InstallPrompt() {
     
     if (standalone) return;
     
-    const dismissed = localStorage.getItem("lumina_install_dismissed");
+    const dismissed = localStorage.getItem("fundi_install_dismissed");
     if (dismissed) {
       const dismissedTime = parseInt(dismissed);
       if (Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) {
@@ -66,7 +66,7 @@ export function InstallPrompt() {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    localStorage.setItem("lumina_install_dismissed", Date.now().toString());
+    localStorage.setItem("fundi_install_dismissed", Date.now().toString());
   };
 
   if (isStandalone || !showPrompt) return null;
@@ -111,7 +111,7 @@ export function InstallPrompt() {
             
             <div className="flex-1 pr-6">
               <h3 className="font-semibold text-gray-900 dark:text-white">
-                Install Lumina Wealth
+                Install Fundi
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 {isIOS 

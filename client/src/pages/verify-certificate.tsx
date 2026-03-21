@@ -66,7 +66,7 @@ export default function VerifyCertificate() {
               Verified Authentic
             </div>
             <h1 className="text-2xl font-bold text-green-700" data-testid="text-verified">Certificate Verified</h1>
-            <p className="text-muted-foreground text-sm mt-1">This certificate is authentic and was issued by Lumina Wealth Academy.</p>
+            <p className="text-muted-foreground text-sm mt-1">This certificate is authentic and was issued by Fundi Academy.</p>
           </div>
 
           <div className="relative bg-gradient-to-br from-[#faf5eb] via-[#f5eedf] to-[#faf5eb] border-2 border-amber-400 rounded-xl overflow-hidden shadow-xl" data-testid="certificate-card">
@@ -82,7 +82,7 @@ export default function VerifyCertificate() {
                   <GraduationCap className="w-7 h-7 text-amber-400" />
                 </div>
               </div>
-              <p className="text-xs font-bold tracking-[0.35em] uppercase text-[#1c2852] mb-0.5">Lumina Wealth Academy</p>
+              <p className="text-xs font-bold tracking-[0.35em] uppercase text-[#1c2852] mb-0.5">Fundi Academy</p>
               <p className="text-[10px] italic tracking-wider text-amber-600 mb-1">Excellence in Education</p>
               <div className="w-48 h-px mx-auto bg-gradient-to-r from-transparent via-amber-400 to-transparent mb-4" />
               <p className="text-base font-serif font-bold tracking-[0.2em] uppercase text-[#1c2852] mb-5">

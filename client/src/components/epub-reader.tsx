@@ -70,25 +70,25 @@ export function EpubReader({ url, bookTitle, bookAuthor, bookId, onBack }: EpubR
 
   useEffect(() => {
     if (bookId) {
-      const saved = localStorage.getItem(`lumina_epub_settings`);
+      const saved = localStorage.getItem(`fundi_epub_settings`);
       if (saved) {
         const s = JSON.parse(saved);
         if (s.theme) setTheme(s.theme);
         if (s.fontSize) setFontSize(s.fontSize);
         if (s.fontFamily) setFontFamily(s.fontFamily);
       }
-      const savedBookmarks = localStorage.getItem(`lumina_bookmarks_${bookId}`);
+      const savedBookmarks = localStorage.getItem(`fundi_bookmarks_${bookId}`);
       if (savedBookmarks) setBookmarks(JSON.parse(savedBookmarks));
     }
   }, [bookId]);
 
   useEffect(() => {
-    localStorage.setItem(`lumina_epub_settings`, JSON.stringify({ theme, fontSize, fontFamily }));
+    localStorage.setItem(`fundi_epub_settings`, JSON.stringify({ theme, fontSize, fontFamily }));
   }, [theme, fontSize, fontFamily]);
 
   useEffect(() => {
     if (bookId) {
-      localStorage.setItem(`lumina_bookmarks_${bookId}`, JSON.stringify(bookmarks));
+      localStorage.setItem(`fundi_bookmarks_${bookId}`, JSON.stringify(bookmarks));
     }
   }, [bookmarks, bookId]);
 
@@ -118,7 +118,7 @@ export function EpubReader({ url, bookTitle, bookAuthor, bookId, onBack }: EpubR
       console.error("EPUB navigation load error:", err);
     });
 
-    const savedLocation = bookId ? localStorage.getItem(`lumina_epub_location_${bookId}`) : null;
+    const savedLocation = bookId ? localStorage.getItem(`fundi_epub_location_${bookId}`) : null;
     const displayPromise = savedLocation
       ? rendition.display(savedLocation)
       : rendition.display();
@@ -141,7 +141,7 @@ export function EpubReader({ url, bookTitle, bookAuthor, bookId, onBack }: EpubR
       if (cfi) {
         setCurrentLocation(cfi);
         if (bookId) {
-          localStorage.setItem(`lumina_epub_location_${bookId}`, cfi);
+          localStorage.setItem(`fundi_epub_location_${bookId}`, cfi);
         }
         setIsCurrentBookmarked(bookmarks.includes(cfi));
       }

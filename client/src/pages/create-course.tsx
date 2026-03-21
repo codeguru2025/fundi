@@ -341,7 +341,7 @@ function VoiceoverRecorder({ voiceoverUrl, onRecorded, onRemove, testIdPrefix }:
   );
 }
 
-const COURSE_DRAFT_KEY = "lumina_course_draft";
+const COURSE_DRAFT_KEY = "fundi_course_draft";
 
 function loadCourseDraft(): any | null {
   try {

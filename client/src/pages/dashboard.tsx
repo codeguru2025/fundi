@@ -428,7 +428,7 @@ export default function Dashboard() {
                           <Award className="w-5 h-5 text-white" />
                         </div>
                       </div>
-                      <p className="text-[9px] font-medium tracking-[0.25em] uppercase text-amber-600 mb-0.5">Lumina Wealth</p>
+                      <p className="text-[9px] font-medium tracking-[0.25em] uppercase text-amber-600 mb-0.5">Fundi</p>
                       <p className="text-[8px] font-medium tracking-[0.15em] uppercase text-amber-500 mb-3">Certificate of Completion</p>
                       <p className="text-[10px] text-gray-500">This certifies that</p>
                       <p className="text-lg font-serif font-bold text-gray-800 border-b border-amber-300 inline-block pb-1 mb-1">[Student Name]</p>

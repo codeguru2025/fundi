@@ -16,7 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="bg-primary text-primary-foreground p-1.5 rounded-md group-hover:bg-primary/90 transition-colors">
                 <BookOpen size={20} />
               </div>
-              <span className="font-serif font-bold text-xl tracking-tight text-primary">Lumina Wealth</span>
+              <span className="font-serif font-bold text-xl tracking-tight text-primary">Fundi</span>
             </div>
           </Link>
           
@@ -74,7 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-medium">Created by Chibikhulu</span>
             <img src="/chibikhulu-logo.jpeg" alt="Chibikhulu" className="h-10 w-auto rounded" />
           </div>
-          <p className="text-xs text-muted-foreground/70">© 2026 Lumina Wealth. Make money while you sleep.</p>
+          <p className="text-xs text-muted-foreground/70">© 2026 Fundi. Make money while you sleep.</p>
         </div>
       </footer>
     </div>

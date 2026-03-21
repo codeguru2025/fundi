@@ -66,7 +66,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
               transition={{ delay: 0.4, duration: 0.5 }}
               className="mt-6 text-3xl font-serif font-bold text-white tracking-wide"
             >
-              Lumina Wealth
+              Fundi
             </motion.h1>
             
             <motion.p

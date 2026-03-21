@@ -103,7 +103,7 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
     page.drawLine({ start: { x: c.x + cornerSize, y: c.y }, end: { x: c.x + cornerSize, y: c.y + cornerSize / 3 }, thickness: 1, color: gold });
   }
 
-  const watermarkText = "LUMINA WEALTH";
+  const watermarkText = "FUNDI";
   const watermarkSize = 72;
   const watermarkWidth = timesRomanItalic.widthOfTextAtSize(watermarkText, watermarkSize);
   page.drawText(watermarkText, {
@@ -137,7 +137,7 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
   });
   y -= logoRadius * 2 + 5;
 
-  drawCenteredText(page, "LUMINA WEALTH ACADEMY", y, helveticaBold, 16, navy);
+  drawCenteredText(page, "FUNDI ACADEMY", y, helveticaBold, 16, navy);
   y -= 16;
   drawCenteredText(page, "Excellence in Education", y, timesRomanItalic, 9, darkGold);
   y -= 6;

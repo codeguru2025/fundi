@@ -49,7 +49,7 @@ function Router() {
 
 function App() {
   const [showSplash, setShowSplash] = useState(() => {
-    const lastSplash = sessionStorage.getItem("lumina_splash_shown");
+    const lastSplash = sessionStorage.getItem("fundi_splash_shown");
     return !lastSplash;
   });
 
@@ -61,7 +61,7 @@ function App() {
 
   const handleSplashComplete = () => {
     setShowSplash(false);
-    sessionStorage.setItem("lumina_splash_shown", "true");
+    sessionStorage.setItem("fundi_splash_shown", "true");
   };
 
   return (

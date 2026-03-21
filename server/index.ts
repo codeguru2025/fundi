@@ -136,7 +136,7 @@ app.use((req, res, next) => {
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen({ port, host: "0.0.0.0" }, () => {
-    logger.info({ port }, `Lumina server listening on port ${port}`);
+    logger.info({ port }, `Fundi server listening on port ${port}`);
   });
 
   // ── Graceful shutdown (required for DO App Platform zero-downtime deploys) 

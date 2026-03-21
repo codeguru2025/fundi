@@ -52,7 +52,7 @@ const defaultManuscript: Manuscript = {
   chapters: [],
 };
 
-const DRAFT_KEY = "lumina_book_draft";
+const DRAFT_KEY = "fundi_book_draft";
 
 function loadDraft(): { manuscript: Manuscript; step: number } | null {
   try {

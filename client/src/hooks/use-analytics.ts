@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 
-const SESSION_KEY = "lumina_analytics_session";
+const SESSION_KEY = "fundi_analytics_session";
 
 function getSessionId(): string {
   let id = sessionStorage.getItem(SESSION_KEY);

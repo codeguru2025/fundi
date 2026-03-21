@@ -29,7 +29,7 @@ async function getAccessToken() {
 }
 
 async function main() {
-  const repoName = process.argv[2] || 'luminawealth';
+  const repoName = process.argv[2] || 'fundi';
 
   console.log('Getting GitHub access token...');
   const accessToken = await getAccessToken();
@@ -49,7 +49,7 @@ async function main() {
       console.log(`Creating repository ${repoName}...`);
       await octokit.repos.createForAuthenticatedUser({
         name: repoName,
-        description: 'Lumina Wealth - Books & Courses Marketplace Platform',
+        description: 'Fundi - Books & Courses Marketplace Platform',
         private: false,
       });
       isEmpty = true;
@@ -64,7 +64,7 @@ async function main() {
       owner, repo: repoName,
       path: 'README.md',
       message: 'Initial commit',
-      content: Buffer.from('# Lumina Wealth\n\nBooks & Courses Marketplace Platform\n').toString('base64'),
+      content: Buffer.from('# Fundi\n\nBooks & Courses Marketplace Platform\n').toString('base64'),
     });
     console.log('Repository initialized.');
     await new Promise(r => setTimeout(r, 3000));
@@ -149,7 +149,7 @@ async function main() {
   console.log('Creating commit...');
   const { data: newCommit } = await octokit.git.createCommit({
     owner, repo: repoName,
-    message: 'Lumina Wealth - Full application code\n\nBooks & Courses marketplace platform with Paynow payment integration,\nGoogle OAuth, admin dashboard, course creation with quizzes/labs/certificates,\nebook publishing, and PWA offline support.',
+    message: 'Fundi - Full application code\n\nBooks & Courses marketplace platform with Paynow payment integration,\nGoogle OAuth, admin dashboard, course creation with quizzes/labs/certificates,\nebook publishing, and PWA offline support.',
     tree: newTree.sha,
     parents: [refSha],
   });

@@ -13,7 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, CreditCard, Smartphone, CheckCircle } from "lucide-react";
 
 function getBuyerToken(): string {
-  const key = "lumina_buyer_token";
+  const key = "fundi_buyer_token";
   let token = localStorage.getItem(key);
   if (!token) {
     token = `buyer_${Date.now()}_${Math.random().toString(36).slice(2)}`;
