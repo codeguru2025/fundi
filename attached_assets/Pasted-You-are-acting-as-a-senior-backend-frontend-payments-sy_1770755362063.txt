@@ -1,0 +1,284 @@
+You are acting as a senior backend + frontend + payments systems engineer.
+
+This is NOT a feature task.
+
+This is a full forensic debugging + repair of the entire purchase → access pipeline.
+
+Users are successfully paying for courses but still cannot access them.
+
+They keep seeing:
+"Buy Now" or "Sign In to Purchase"
+
+This means access verification is failing.
+
+Your job is to trace and fix the ENTIRE flow end-to-end.
+
+Do NOT patch blindly.
+Do NOT add hacks.
+Do NOT add temporary flags.
+Fix the root causes only.
+
+GOAL
+
+After your fixes:
+
+When a user pays:
+→ purchase record created
+→ sale record created
+→ access endpoint returns TRUE
+→ UI immediately shows "Start Learning"
+
+ZERO manual refreshes
+ZERO delays
+ZERO edge case failures
+
+Must work 100% of the time.
+
+CRITICAL RULES
+
+You MUST:
+
+• read the actual codebase first
+• log everything
+• verify DB writes
+• verify DB reads
+• verify identifiers match
+• verify webhook fires
+• verify frontend state updates
+• fix architecture issues, not symptoms
+• explain every bug found
+
+STEP-BY-STEP MANDATORY INVESTIGATION
+STEP 1 — TRACE IDENTIFIERS (MOST COMMON ROOT CAUSE)
+
+Print and verify:
+
+What identifies a buyer?
+
+Possible:
+• Google user id
+• email
+• localStorage buyerToken
+
+Check:
+
+Initiate payment → which identifier stored?
+Purchase creation → which identifier saved?
+Access check → which identifier queried?
+
+These MUST match EXACTLY.
+
+Fix mismatches like:
+
+purchase saved with email
+but access check uses buyerId
+
+OR
+
+purchase saved with buyerToken
+but access check uses Google id
+
+Normalize to ONE consistent key.
+
+STEP 2 — VERIFY PURCHASE CREATION
+
+Check:
+
+/api/courses/payments/callback
+/api/courses/payments/check-status
+
+Ensure BOTH:
+
+createCoursePurchase()
+
+ALWAYS runs when paid.
+
+Add logs:
+
+console.log("Creating purchase for:", buyerId, courseId)
+
+Then verify:
+
+SELECT * FROM coursePurchases
+
+Confirm row exists.
+
+If missing → FIX.
+
+STEP 3 — VERIFY ACCESS ENDPOINT
+
+Check:
+
+/api/courses/:id/access
+
+This must:
+
+return true if:
+
+• instructor
+• admin
+• OR purchase exists
+
+Ensure query:
+
+SELECT * FROM coursePurchases
+WHERE courseId = ?
+AND buyerId = ?
+
+NOT filtering incorrectly.
+
+Add:
+
+console.log("Access check result:", rows)
+
+If rows empty but purchase exists → bug.
+
+Fix query.
+
+STEP 4 — VERIFY WEBHOOK INFRASTRUCTURE
+
+Check:
+
+• callback URL correct
+• route exposed publicly
+• Paynow hitting server
+• server logs show callback
+• no 404/500
+• polling re-verifies payment
+
+If webhook not firing:
+→ purchases never created automatically
+
+Fix:
+
+• route path
+• env URLs
+• body parser
+• CORS
+• production domain
+
+STEP 5 — VERIFY DUPLICATE PROTECTION
+
+Check logic like:
+
+if (alreadyPurchased) return;
+
+Ensure this does NOT block legitimate creation when record missing.
+
+Common bug:
+
+wrong check condition returns true always.
+
+Fix.
+
+STEP 6 — VERIFY DATABASE SCHEMA
+
+Confirm:
+
+coursePurchases table:
+
+id
+courseId
+buyerId (or token)
+createdAt
+
+Ensure types match:
+
+string vs uuid vs int mismatch causes failed lookups.
+
+Fix type mismatches.
+
+STEP 7 — VERIFY FRONTEND STATE
+
+Check React code:
+
+After payment success:
+
+Does it:
+
+• refetch access?
+• invalidate cache?
+• call /access again?
+
+If not:
+
+UI still shows old state.
+
+Add:
+
+queryClient.invalidateQueries(["course-access", id])
+
+or refetch.
+
+STEP 8 — VERIFY PAYMENT INITIATION
+
+Check:
+
+/api/courses/payments/initiate
+
+Ensure:
+
+pendingPayments row includes:
+
+buyerId
+courseId
+pollUrl
+
+If buyerId missing → callback can’t map user.
+
+Fix.
+
+STEP 9 — ADD DEFENSIVE LOGGING
+
+Add logs to:
+
+• initiate
+• callback
+• check-status
+• purchase creation
+• access check
+
+So future bugs are visible instantly.
+
+STEP 10 — RUN TEST SCENARIOS
+
+You MUST simulate:
+
+Test 1:
+Pay → callback → instant access
+
+Test 2:
+Pay → manual check → instant access
+
+Test 3:
+Refresh page → still access
+
+Test 4:
+Logout/login → still access
+
+Test 5:
+Duplicate payment → no duplicate purchase
+
+All must pass.
+
+REQUIRED OUTPUT
+
+After finishing:
+
+Provide:
+
+All bugs found
+
+Root cause for each
+
+Exact code fixes
+
+Schema fixes
+
+Endpoint fixes
+
+Frontend fixes
+
+Confirmation flow now 100% reliable
+
+Do NOT stop until complete.

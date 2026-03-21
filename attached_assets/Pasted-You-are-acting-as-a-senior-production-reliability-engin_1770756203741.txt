@@ -1,0 +1,152 @@
+You are acting as a senior production reliability engineer.
+
+This is a full system repair task.
+
+The purchase → access flow has bugs.
+
+Some users already paid but cannot access their courses/books.
+
+IMPORTANT:
+The database already contains historical purchases created under buggy logic.
+
+So fixing code alone is NOT enough.
+
+You must:
+
+Fix all logic bugs going forward
+
+Backfill and repair ALL historical data
+
+Guarantee past buyers immediately gain access
+
+Do not skip the migration step.
+
+PHASE 1 — FIX FORWARD LOGIC (pipeline hardening)
+
+Audit and fix:
+
+• payment initiate
+• webhook callback
+• manual check-status
+• purchase creation
+• access endpoint
+• frontend cache refresh
+
+Ensure:
+
+After any successful payment:
+ALWAYS create purchase row
+ALWAYS create sale row
+ALWAYS use SAME buyer identifier
+
+Normalize to:
+
+buyerId = Google user id if logged in
+ELSE buyerToken
+
+Never mix email or other fields.
+
+PHASE 2 — HISTORICAL DATA REPAIR (CRITICAL)
+
+You must write and execute a repair script.
+
+Create:
+
+scripts/repairPurchases.ts
+
+This script must:
+
+STEP 1 — fetch all completed sales
+SELECT * FROM sales WHERE status = 'completed'
+
+STEP 2 — for each sale:
+check if purchase exists:
+
+For courses:
+SELECT * FROM coursePurchases
+WHERE courseId = sale.courseId
+AND buyerId = sale.buyerId
+
+For books:
+SELECT * FROM purchases
+WHERE bookId = sale.bookId
+AND buyerId = sale.buyerId
+
+STEP 3 — if missing:
+create purchase automatically
+
+STEP 4 — normalize bad identifiers:
+If buyerId null but email exists:
+map email → user id
+update row
+
+STEP 5 — print report:
+• repaired count
+• already correct count
+• failures
+
+PHASE 3 — ACCESS ENDPOINT HARDENING
+
+Modify:
+
+/api/courses/:id/access
+/api/books/:id/access
+
+Logic must be:
+
+return true if:
+• admin
+• instructor
+• OR purchase exists
+• OR sale exists (fallback for legacy safety)
+
+This ensures old buyers never get locked out.
+
+PHASE 4 — FRONTEND FIX
+
+After payment:
+
+force:
+
+queryClient.invalidateQueries(["course-access"])
+queryClient.invalidateQueries(["book-access"])
+
+So UI updates immediately.
+
+PHASE 5 — ADD LOGGING
+
+Log:
+
+purchase created
+access checked
+rows found
+
+No silent failures allowed.
+
+PHASE 6 — RUN TESTS
+
+Simulate:
+
+old historical sale with no purchase → repair grants access
+
+new purchase → instant access
+
+manual grant → instant access
+
+refresh → still access
+
+logout/login → still access
+
+All must pass.
+
+OUTPUT REQUIRED
+
+Provide:
+
+• all bugs found
+• exact fixes
+• migration script
+• number of records repaired
+• confirmation old + new purchases both work
+
+Do NOT stop until historical users also have access.

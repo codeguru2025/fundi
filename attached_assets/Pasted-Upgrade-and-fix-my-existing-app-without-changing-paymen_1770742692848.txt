@@ -1,0 +1,335 @@
+Upgrade and fix my existing app without changing payments, authentication, or access logic.
+
+This is a stability, admin-control, UI/UX, and certificate authenticity upgrade.
+
+DO NOT refactor the whole app.
+DO NOT break existing flows.
+DO NOT change how payments work.
+DO NOT change store or purchase rules.
+
+Only enhance functionality and fix broken/missing behavior.
+
+====================================================
+OBJECTIVES
+
+ADMIN SUPER ACCESS
+
+FIX COURSE COVER DISPLAY
+
+FIX EMPTY DASHBOARD DATA
+
+FIX ADMIN PANEL DATA
+
+REMOVE PAYNOW SETTINGS TAB
+
+CERTIFICATE DOWNLOAD WORKS FOR ADMIN
+
+PROFESSIONAL CERTIFICATE WITH SECURITY + QR VERIFICATION
+
+GENERAL BUG FIXES & STABILITY
+
+====================================================
+FEATURE REQUIREMENTS
+
+========================
+
+ADMIN SUPER ACCESS
+========================
+
+Admins must have full unrestricted access.
+
+Admin can:
+
+view all courses
+
+open any course
+
+bypass purchases
+
+download any certificate
+
+test any user flow
+
+impersonate a user (view-as-user mode)
+
+access all dashboards
+
+bypass locks/permissions
+
+Implementation:
+
+role = "admin" override
+
+middleware: if admin → allow all
+
+skip payment checks
+
+skip course locks
+
+========================
+2. COURSE COVER IMAGE FIX
+
+Problem:
+Course cover images are cropped incorrectly.
+
+Fix:
+
+maintain aspect ratio
+
+no cropping
+
+responsive
+
+professional layout
+
+Use:
+object-fit: contain
+or
+aspect-ratio box
+
+Requirements:
+
+show full image
+
+centered
+
+consistent height
+
+works mobile + desktop
+
+========================
+3. DASHBOARD DATA FIX
+
+Dashboard is blank.
+
+Implement:
+Fetch and display data per user role.
+
+For students show:
+
+enrolled courses
+
+progress %
+
+certificates earned
+
+last activity
+
+continue learning
+
+For admin show:
+
+total users
+
+total courses
+
+total enrollments
+
+revenue
+
+certificates issued
+
+recent activity
+
+Connect dashboard to real DB queries.
+No hardcoded data.
+
+========================
+4. ADMIN PANEL DATA FIX
+
+Admin panel must correctly display:
+
+users list
+
+courses list
+
+enrollments
+
+payments
+
+certificates
+
+uploads
+
+Add:
+
+pagination
+
+search
+
+filters
+
+Everything must reflect live database.
+
+========================
+5. REMOVE PAYNOW TAB
+
+Remove:
+Paynow settings tab completely from admin UI.
+
+Do NOT delete backend logic.
+Only remove from UI.
+
+========================
+6. CERTIFICATE DOWNLOAD FIX
+
+Currently admin cannot download certificates.
+
+Fix:
+Admins can:
+
+generate
+
+preview
+
+download any certificate
+
+Button:
+Download PDF
+
+No permission restrictions for admin.
+
+========================
+7. PROFESSIONAL CERTIFICATE SYSTEM
+
+Replace basic certificate with professional design.
+
+Generate dynamic PDF certificate with:
+
+Must include:
+
+student name
+
+course title
+
+completion date
+
+unique certificate ID
+
+instructor signature
+
+organization logo
+
+watermark background
+
+QR verification code
+
+serial number
+
+official styling
+
+Security features:
+
+unique hash ID
+
+QR code linking to:
+/verify/:certificateId
+
+verification page shows:
+name
+course
+issue date
+status = valid
+
+Use:
+Backend:
+
+reportlab (python) OR pdf-lib (node)
+
+QR:
+
+generate dynamically
+
+Style:
+
+landscape
+
+premium look
+
+authentic government/academic feel
+
+========================
+8. GENERAL STABILITY
+
+Fix:
+
+blank states
+
+broken routes
+
+loading states
+
+missing error handling
+
+console errors
+
+slow queries
+
+Add:
+
+proper loading spinners
+
+fallback UI
+
+try/catch everywhere
+
+logs
+
+====================================================
+TECH IMPLEMENTATION NOTES
+
+Follow existing stack.
+
+Add:
+
+role-based middleware
+
+certificate generator service
+
+QR generator
+
+verification endpoint
+
+dashboard queries
+
+responsive image fixes
+
+Do NOT break:
+
+payments
+
+auth
+
+ebook pipeline
+
+store
+
+====================================================
+DELIVERABLES
+
+Generate:
+
+admin middleware override
+
+fixed dashboard components
+
+fixed admin panel
+
+certificate generator service
+
+certificate PDF template
+
+QR verification route
+
+updated UI components
+
+removal of paynow tab
+
+working end-to-end admin testing
+
+Goal:
+Admin must be able to fully test the entire app without restrictions.
+UI must feel professional.
+Certificates must look authentic and verifiable.
+
+====================================================

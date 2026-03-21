@@ -1,0 +1,262 @@
+You are now acting as a senior staff engineer performing a full production audit.
+
+This is NOT a feature task.
+This is a systematic debugging and repair task.
+
+The Admin Dashboard has multiple tabs that are not fetching or displaying data correctly.
+
+Some tabs show blank results or miss records that exist in the database.
+
+You must find and fix ALL bugs across backend, database queries, permissions, and frontend integration.
+
+Do NOT guess.
+Trace everything end-to-end.
+
+GOAL
+
+Make every admin tab fully functional and correctly connected to real data:
+
+Overview
+Sales
+Settlements
+Books Management
+Content Moderation
+Grant Access
+
+Everything must work reliably.
+
+CRITICAL RULES
+
+You MUST:
+
+• Inspect actual code before changing anything
+• Verify database schema matches queries
+• Verify API routes exist and return data
+• Verify middleware is not blocking results
+• Verify frontend calls correct endpoints
+• Log everything
+• Fix root causes only
+• Do not hide errors with try/catch
+• Do not mock data
+• Do not change business rules
+
+STEP-BY-STEP AUDIT PROCESS (MANDATORY)
+STEP 1 — AUTH & ADMIN ACCESS
+
+Check:
+
+server/auth/googleAuth.ts
+
+Verify:
+
+• isAuthenticated works
+• isAdmin works
+• email comparison uses exact match
+• DEFAULT_ADMIN_EMAIL loaded correctly
+• session exists in requests
+• admin routes use both middlewares
+
+Add logs:
+
+console.log("Admin:", req.user?.email)
+
+Fix any silent failures.
+
+STEP 2 — VERIFY DATABASE SCHEMA
+
+Print all tables and columns.
+
+Confirm these exist EXACTLY:
+
+users
+books
+courses
+sales
+settlements
+purchases
+coursePurchases
+pendingPayments
+coursePendingPayments
+
+Check for mismatches like:
+isApproved vs approved
+createdAt vs created_at
+sellerId vs seller_id
+
+Fix schema or queries so names match 100%.
+
+STEP 3 — VERIFY EVERY ADMIN API
+
+Test each endpoint manually.
+
+Add logs to each route:
+
+console.log("Rows returned:", rows.length)
+
+Fix if empty.
+
+/api/admin/overview
+
+Verify:
+
+• storage.getAllSales()
+• storage.getBooks()
+• storage.getCourses()
+
+Ensure:
+
+• queries are not filtering incorrectly
+• sums are computed correctly
+• returns JSON
+
+/api/admin/sales
+
+Verify:
+
+SELECT * FROM sales ORDER BY createdAt DESC
+
+Ensure:
+
+• status filter not hiding rows
+• table actually has data
+
+/api/admin/settlements
+
+Verify:
+
+• settlement generation logic
+• sales marked settled properly
+• grouping by seller works
+
+/api/admin/books
+
+Verify:
+
+• returns ALL books
+• no WHERE filters
+• visibility toggle updates correctly
+
+/api/admin/pending-content
+
+CRITICAL:
+
+Must fetch:
+
+WHERE isApproved = false
+
+Ensure:
+
+• upload sets isApproved = false
+• admin content auto true only
+• no filtering by sellerId
+
+Approve/Reject
+
+Ensure:
+
+UPDATE books SET isApproved = true/false
+
+Check row count > 0
+
+/api/admin/pending-payments
+
+Verify:
+
+• both tables queried
+• joins correct
+• search filters correct
+
+STEP 4 — VERIFY UPLOAD PIPELINE
+
+Trace:
+
+Upload → DB insert → Moderation → Approve → Store
+
+Ensure:
+
+Book insert includes:
+
+isApproved = false
+isVisible = true
+
+Fix missing defaults.
+
+STEP 5 — VERIFY FRONTEND
+
+Search React code:
+
+useQuery()
+
+Confirm:
+
+Correct endpoints
+Correct query keys
+Correct data mapping
+No silent failures
+Console errors fixed
+
+Add:
+
+console.log(response.data)
+
+STEP 6 — VERIFY STORE FILTERS
+
+Store must ONLY show:
+
+isApproved = true AND isVisible = true
+
+Ensure moderation items excluded.
+
+STEP 7 — ADD DEFENSIVE LOGGING
+
+For every admin API:
+
+Log:
+
+• user email
+• query run
+• rows returned
+
+This must help future debugging.
+
+STEP 8 — TEST SCENARIOS
+
+You must simulate:
+
+Upload book (normal user)
+→ appears in moderation
+
+Approve
+→ appears in store
+
+Reject
+→ not in store + comment saved
+
+Create sale
+→ appears in sales tab
+
+Seller reaches $50
+→ settlement generated
+
+Manual grant
+→ purchase created
+
+All must pass.
+
+OUTPUT REQUIRED
+
+After fixes, output:
+
+All bugs found
+
+Root cause of each
+
+Exact code fixes
+
+Updated queries
+
+Updated middleware
+
+Confirmation each tab works
+
+Do NOT stop until every tab shows real data correctly.

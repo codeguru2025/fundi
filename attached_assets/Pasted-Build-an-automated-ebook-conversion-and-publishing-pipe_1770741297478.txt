@@ -1,0 +1,191 @@
+Build an automated ebook conversion and publishing pipeline inside my existing app.
+
+IMPORTANT CONSTRAINTS:
+
+Do NOT change payments
+
+Do NOT change authentication
+
+Do NOT change access control
+
+Do NOT change the store purchase logic
+
+Only upgrade the content ingestion and reading experience
+
+CURRENT BEHAVIOR:
+
+Admin uploads a typeset file (usually PDF)
+
+App stores it
+
+Readers open it inside a PDF viewer
+
+NEW REQUIRED BEHAVIOR:
+When a file is uploaded, automatically convert it into a proper EPUB ebook and serve it through a native ebook reader instead of a PDF viewer.
+
+====================================================
+FEATURES TO IMPLEMENT
+
+FILE INGESTION
+Accept these formats:
+
+PDF
+
+DOCX
+
+EPUB (already formatted)
+
+HTML
+
+AUTO-CONVERSION PIPELINE
+On upload:
+
+IF EPUB:
+store as-is
+
+IF PDF or DOCX or HTML:
+convert to EPUB automatically
+
+Use:
+
+Calibre CLI (ebook-convert) OR
+
+Pandoc OR
+
+any reliable server-side conversion library
+
+Output:
+.epub only
+
+STORE BOTH VERSIONS
+Save:
+
+original file (backup)
+
+converted epub (primary reading format)
+
+Database fields:
+
+original_file_url
+
+epub_file_url
+
+format
+
+conversion_status
+
+READER EXPERIENCE (CRITICAL)
+Replace the PDF viewer completely.
+
+Implement a native EPUB reader with:
+
+chapter navigation
+
+bookmarks
+
+adjustable font size
+
+dark/light mode
+
+search
+
+highlights
+
+reading progress save
+
+offline caching if possible
+
+Use:
+
+epub.js (frontend)
+
+Do NOT render PDFs.
+
+STORE INTEGRATION
+After conversion:
+
+publish the EPUB to the existing store automatically
+
+keep same purchase rules
+
+keep same pricing logic
+
+keep same access checks
+
+When user clicks “Read”:
+
+open EPUB reader
+
+NOT PDF
+
+PERFORMANCE
+
+async background conversion
+
+show "Processing…" status until ready
+
+queue large files
+
+max file size 100MB
+
+cache epub
+
+DEPLOYMENT
+Install dependencies automatically:
+
+calibre or pandoc
+
+epub.js
+
+Ensure:
+
+works in Replit
+
+runs without manual setup
+
+includes conversion service script
+
+includes reader component
+
+includes upload hook
+
+====================================================
+TECH STACK REQUIREMENTS
+
+Backend:
+Node or Python (match existing stack)
+
+Conversion:
+CLI tool (ebook-convert preferred)
+
+Frontend:
+epub.js reader
+
+Storage:
+Use current storage bucket
+
+====================================================
+DELIVERABLES
+
+Generate:
+
+conversion service
+
+upload hook
+
+background worker
+
+epub reader component
+
+updated read route
+
+updated DB schema
+
+working example
+
+Do NOT modify payment or auth code.
+
+Only enhance the reading experience.
+
+Goal:
+Make reading feel like Kindle/Apple Books, not a PDF viewer.

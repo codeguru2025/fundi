@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  
+  /* Literary Theme - Warm & Clean */
+  --color-background: hsl(40 20% 97%); /* #F9F7F1 Warm Paper */
+  --color-foreground: hsl(30 10% 15%); /* #2D2A26 Deep Charcoal */
+  
+  --color-card: hsl(40 20% 99%);
+  --color-card-foreground: hsl(30 10% 15%);
+  
+  --color-popover: hsl(40 20% 99%);
+  --color-popover-foreground: hsl(30 10% 15%);
+  
+  /* Library Blue */
+  --color-primary: hsl(215 50% 23%); /* #1A365D */
+  --color-primary-foreground: hsl(0 0% 98%);
+  
+  --color-secondary: hsl(35 20% 90%);
+  --color-secondary-foreground: hsl(215 50% 23%);
+  
+  --color-muted: hsl(35 15% 92%);
+  --color-muted-foreground: hsl(30 5% 45%);
+  
+  --color-accent: hsl(35 30% 85%);
+  --color-accent-foreground: hsl(215 50% 23%);
+  
+  --color-destructive: hsl(0 60% 40%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  
+  --color-border: hsl(35 15% 85%);
+  --color-input: hsl(35 15% 85%);
+  --color-ring: hsl(215 50% 23%);
+  
+  --color-chart-1: hsl(215 50% 23%);
+  --color-chart-2: hsl(30 40% 40%);
+  --color-chart-3: hsl(150 30% 30%);
+  --color-chart-4: hsl(45 80% 40%);
+  --color-chart-5: hsl(0 60% 40%);
+  
+  --color-sidebar: hsl(40 20% 97%);
+  --color-sidebar-foreground: hsl(30 10% 15%);
+  --color-sidebar-primary: hsl(215 50% 23%);
+  --color-sidebar-primary-foreground: hsl(0 0% 98%);
+  --color-sidebar-accent: hsl(35 20% 90%);
+  --color-sidebar-accent-foreground: hsl(215 50% 23%);
+  --color-sidebar-border: hsl(35 15% 85%);
+  --color-sidebar-ring: hsl(215 50% 23%);
+
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Libre Baskerville', serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    outline-color: var(--color-ring);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    font-weight: 700;
+  }
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.book-shadow {
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 2px 4px -1px rgba(0, 0, 0, 0.03),
+    0 0 0 1px rgba(0, 0, 0, 0.02);
+}
+
+.paper-texture {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+}
