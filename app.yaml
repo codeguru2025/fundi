@@ -16,7 +16,7 @@ services:
   - key: PORT
     value: "5000"
   - key: APP_URL
-    value: "" # e.g. https://fundi-xxxxx.ondigitalocean.app
+    value: "https://fundi-46s3y.ondigitalocean.app"
   - key: DATABASE_URL
     value: "" # From Supabase (pooled)
     type: SECRET
