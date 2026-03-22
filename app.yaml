@@ -13,6 +13,8 @@ services:
   envs:
   - key: NODE_ENV
     value: production
+  - key: NODE_TLS_REJECT_UNAUTHORIZED
+    value: "0"
   - key: PORT
     value: "5000"
   - key: APP_URL
