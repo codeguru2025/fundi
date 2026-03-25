@@ -5,7 +5,7 @@ services:
     branch: main
     deploy_on_push: true
     repo: codeguru2025/fundi
-  build_command: npm run build
+  build_command: npm run db:migrate -- --force && npm run build
   run_command: npm start
   environment_slug: node-js
   instance_count: 1
@@ -38,9 +38,9 @@ services:
     value: ""
     type: SECRET
   - key: DO_SPACES_BUCKET
-    value: fundi-content
+    value: fundi-uploads
   - key: DO_SPACES_REGION
-    value: ams3
+    value: lon1
   - key: PAYNOW_INTEGRATION_ID
     value: ""
     type: SECRET

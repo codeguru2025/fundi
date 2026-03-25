@@ -736,7 +736,7 @@ export default function CreateCourse() {
       if (isEditMode && editCourseId) {
         const res = await fetch(`/api/admin/courses/${editCourseId}/full`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: csrfHeaders({ "Content-Type": "application/json" }),
           credentials: "include",
           body: JSON.stringify(courseData),
         });

@@ -2,7 +2,7 @@
 import type { Server } from "http";
 import { storage, db } from "../storage";
 import { isAuthenticated, isAdmin } from "../auth/googleAuth";
-import { coursePendingPayments, pendingPayments } from "@shared/schema";
+import { coursePendingPayments, pendingPayments, type InsertCourse } from "@shared/schema";
 import { desc } from "drizzle-orm";
 import { stripBooksContent, stripSensitiveUserFields, rateLimit, COMMISSION_RATE } from "./types";
 import { generateCertificatePDF } from "../certificate-generator";
@@ -350,7 +350,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
   app.patch("/api/admin/courses/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const { title, description, price, category, cover } = req.body;
-      const updateData: any = {};
+      const updateData: Partial<InsertCourse> = {};
       if (title !== undefined) {
         if (typeof title !== "string" || title.trim().length === 0) return res.status(400).json({ error: "Title cannot be empty" });
         updateData.title = title.trim();
