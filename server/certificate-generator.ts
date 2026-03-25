@@ -1,4 +1,5 @@
-import { PDFDocument, rgb, StandardFonts, PDFPage, PDFFont } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFPage, type PDFFont } from "pdf-lib";
+import { logger } from "./index";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
@@ -226,7 +227,7 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
       height: sigDisplayHeight,
     });
   } catch (err) {
-    console.error("Signature embed error:", err);
+    logger.error({ err }, "Signature embed error");
   }
 
   const founderNameWidth = timesRomanBold.widthOfTextAtSize(FOUNDER_NAME, 12);
@@ -304,7 +305,7 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
       color: medGray,
     });
   } catch (err) {
-    console.error("QR generation error:", err);
+    logger.error({ err }, "QR generation error");
   }
 
   const bottomY = borderInset + 18;

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { csrfHeaders } from "@/lib/csrf";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
@@ -446,7 +447,7 @@ function AdminCourseFullEditor({ courseId, onClose }: { courseId: string; onClos
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+      const res = await fetch("/api/upload", { method: "POST", headers: csrfHeaders(), body: formData, credentials: "include" });
       const data = await res.json();
       if (data.url) setEditForm(f => ({ ...f, cover: data.url }));
     } catch {
@@ -1439,6 +1440,7 @@ function MigrateLegacyBooksCard() {
     try {
       const res = await fetch("/api/admin/books/migrate-legacy", {
         method: "POST",
+        headers: csrfHeaders(),
         credentials: "include",
       });
       const data = await res.json();
@@ -1953,7 +1955,7 @@ function GrantAccessSection() {
     try {
       const res = await fetch("/api/admin/grant-course-access", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({
           courseId,

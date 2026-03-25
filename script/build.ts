@@ -11,6 +11,7 @@ const allowlist = [
   "drizzle-zod",
   "express",
   "express-session",
+  "cookie-parser",
   "google-auth-library",
   "memorystore",
   "multer",
@@ -21,6 +22,8 @@ const allowlist = [
   "paynow",
   "pdf-lib",
   "pg",
+  "pino",
+  "pino-pretty",
   "qrcode",
   "sharp",
   "ws",
@@ -48,6 +51,21 @@ async function buildAll() {
     bundle: true,
     format: "cjs",
     outfile: "dist/index.cjs",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+    minify: true,
+    external: externals,
+    logLevel: "info",
+  });
+
+  console.log("building cron job...");
+  await esbuild({
+    entryPoints: ["server/cron.ts"],
+    platform: "node",
+    bundle: true,
+    format: "cjs",
+    outfile: "dist/cron.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },

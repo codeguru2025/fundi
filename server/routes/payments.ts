@@ -5,6 +5,7 @@ import { Paynow } from "paynow";
 import { storage } from "../storage";
 import { isAuthenticated, isAdmin } from "../auth/googleAuth";
 import { rateLimit, COMMISSION_RATE, UPLOAD_FEE, MONTHLY_SUBSCRIPTION, DEFAULT_CERTIFICATE_FEE } from "./types";
+import { logger } from "../index";
 
 export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
   // Paynow config GET/POST
@@ -13,7 +14,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       const integrationId = process.env.PAYNOW_INTEGRATION_ID;
       const integrationKey = process.env.PAYNOW_INTEGRATION_KEY;
       res.json({ configured: !!(integrationId && integrationKey) });
-    } catch (error) { console.error("Error fetching Paynow config:", error); res.status(500).json({ error: "Failed to fetch Paynow config" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching Paynow config"); res.status(500).json({ error: "Failed to fetch Paynow config" }); }
   });
 
   app.post("/api/paynow-config", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -22,7 +23,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       if (!integrationId || !integrationKey) return res.status(400).json({ error: "Integration ID and Key are required" });
       const config = await storage.savePaynowConfig({ integrationId, integrationKey, isActive: true });
       res.json({ configured: true, integrationId: config.integrationId });
-    } catch (error) { console.error("Error saving Paynow config:", error); res.status(500).json({ error: "Failed to save Paynow config" }); }
+    } catch (error) { logger.error({ err: error }, "Error saving Paynow config"); res.status(500).json({ error: "Failed to save Paynow config" }); }
   });
 
   // Pricing
@@ -58,7 +59,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
         await storage.createPendingPayment({ bookId, buyerToken, email: email || null, pollUrl: response.pollUrl, amount: book.price, status: 'pending' });
         res.json({ success: true, redirectUrl: response.redirectUrl, pollUrl: response.pollUrl, instructions: response.instructions, paymentMethod });
       } else { res.status(400).json({ success: false, error: response.error }); }
-    } catch (error) { console.error("Payment initiation error:", error); res.status(500).json({ error: "Failed to initiate payment" }); }
+    } catch (error) { logger.error({ err: error }, "Payment initiation error"); res.status(500).json({ error: "Failed to initiate payment" }); }
   });
 
   // Book payment check-status
@@ -83,7 +84,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
         }
         res.json({ success: true, paid: true, status: 'paid', message: 'Payment successful! You now have full access to this book.' });
       } else { res.json({ success: true, paid: false, status: status.status, message: `Payment status: ${status.status}` }); }
-    } catch (error) { console.error("Payment status check error:", error); res.status(500).json({ error: "Failed to check payment status" }); }
+    } catch (error) { logger.error({ err: error }, "Payment status check error"); res.status(500).json({ error: "Failed to check payment status" }); }
   });
 
   // Book purchase check
@@ -95,7 +96,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       if (buyerToken) purchased = await storage.hasPurchased(bookId, buyerToken);
       if (!purchased && userId) purchased = await storage.hasPurchased(bookId, userId);
       res.json({ purchased });
-    } catch (error) { console.error("Purchase check error:", error); res.json({ purchased: false }); }
+    } catch (error) { logger.error({ err: error }, "Purchase check error"); res.json({ purchased: false }); }
   });
 
   // Book payment callback (webhook)
@@ -121,7 +122,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       const sellerEarnings = saleAmount - commission;
       await storage.confirmBookPayment({ bookId, buyerToken: matchedPayment.buyerToken, email: matchedPayment.email || undefined, sellerId: book.authorId || "unknown", amount: saleAmount, commission, sellerEarnings, paynowReference: paynowreference || verifiedStatus.reference, pendingPaymentId: matchedPayment.id });
       res.status(200).send("OK");
-    } catch (error) { console.error("Payment callback error:", error); res.status(500).send("Error"); }
+    } catch (error) { logger.error({ err: error }, "Payment callback error"); res.status(500).send("Error"); }
   });
 
   // Course payment initiation
@@ -152,7 +153,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
         await storage.createCoursePendingPayment(courseId, buyerToken, response.pollUrl, course.price, email);
         res.json({ success: true, redirectUrl: response.redirectUrl, pollUrl: response.pollUrl, instructions: response.instructions, paymentMethod });
       } else { res.status(400).json({ success: false, error: response.error }); }
-    } catch (error) { console.error("Course payment initiation error:", error); res.status(500).json({ error: "Failed to initiate payment" }); }
+    } catch (error) { logger.error({ err: error }, "Course payment initiation error"); res.status(500).json({ error: "Failed to initiate payment" }); }
   });
 
   // Course payment check-status
@@ -177,7 +178,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
         }
         res.json({ success: true, paid: true, status: 'paid', message: 'Payment successful! You now have access to this course.' });
       } else { res.json({ success: true, paid: false, status: status.status, message: `Payment status: ${status.status}` }); }
-    } catch (error) { console.error("Course payment status check error:", error); res.status(500).json({ error: "Failed to check payment status" }); }
+    } catch (error) { logger.error({ err: error }, "Course payment status check error"); res.status(500).json({ error: "Failed to check payment status" }); }
   });
 
   // Course payment callback (webhook)
@@ -203,7 +204,7 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       const sellerEarnings = saleAmount - commission;
       await storage.confirmCoursePayment({ courseId, buyerToken: matchedPayment.buyerToken, email: matchedPayment.email || undefined, sellerId: course.instructorId, amount: saleAmount, commission, sellerEarnings, paynowReference: paynowreference || verifiedStatus.reference, pendingPaymentId: matchedPayment.id });
       res.status(200).send("OK");
-    } catch (error) { console.error("Course payment callback error:", error); res.status(500).send("Error"); }
+    } catch (error) { logger.error({ err: error }, "Course payment callback error"); res.status(500).send("Error"); }
   });
 
   // Course purchase check
@@ -215,6 +216,6 @@ export function registerPaymentRoutes(app: Express, _httpServer: Server): void {
       if (buyerToken) purchased = await storage.hasCoursePurchased(courseId, buyerToken);
       if (!purchased && userId) purchased = await storage.hasCoursePurchased(courseId, userId);
       res.json({ purchased });
-    } catch (error) { console.error("Course purchase check error:", error); res.json({ purchased: false }); }
+    } catch (error) { logger.error({ err: error }, "Course purchase check error"); res.json({ purchased: false }); }
   });
 }

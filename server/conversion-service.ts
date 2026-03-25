@@ -3,6 +3,8 @@ import { promisify } from "util";
 import fs from "fs";
 import path from "path";
 import { storage } from "./storage";
+import { generateObjectKey, getUploadSignedUrl, getPublicUrl } from "./spaces";
+import { logger } from "./index";
 
 const execFileAsync = promisify(execFile);
 const CONVERSION_DIR = path.join(process.cwd(), "conversions");
@@ -13,18 +15,17 @@ if (!fs.existsSync(CONVERSION_DIR)) {
 }
 
 async function downloadFromObjectStorage(objectPath: string, destPath: string): Promise<void> {
-  const { ObjectStorageService } = await import("./replit_integrations/object_storage");
-  const objectService = new ObjectStorageService();
-  const file = await objectService.getObjectEntityFile(objectPath);
-  const [buffer] = await file.download();
+  // objectPath is a CDN URL — download the file directly
+  const response = await fetch(objectPath);
+  if (!response.ok) throw new Error(`Failed to download file: ${response.status}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
   fs.writeFileSync(destPath, buffer);
 }
 
 async function uploadToObjectStorage(filePath: string, contentType: string): Promise<string> {
-  const { ObjectStorageService } = await import("./replit_integrations/object_storage");
-  const objectService = new ObjectStorageService();
-  const uploadURL = await objectService.getObjectEntityUploadURL();
-  const objectPath = objectService.normalizeObjectEntityPath(uploadURL);
+  const originalName = path.basename(filePath);
+  const key = generateObjectKey(originalName);
+  const uploadURL = await getUploadSignedUrl(key, contentType);
 
   const fileBuffer = fs.readFileSync(filePath);
   const fileSize = fs.statSync(filePath).size;
@@ -35,6 +36,7 @@ async function uploadToObjectStorage(filePath: string, contentType: string): Pro
     headers: {
       "Content-Type": contentType,
       "Content-Length": String(fileSize),
+      "x-amz-acl": "public-read",
     },
   });
 
@@ -42,14 +44,13 @@ async function uploadToObjectStorage(filePath: string, contentType: string): Pro
     throw new Error(`Upload failed: ${response.status}`);
   }
 
-  return objectPath;
+  return getPublicUrl(key);
 }
 
 export async function uploadFileDataToStorage(base64Data: string, contentType: string): Promise<string> {
-  const { ObjectStorageService } = await import("./replit_integrations/object_storage");
-  const objectService = new ObjectStorageService();
-  const uploadURL = await objectService.getObjectEntityUploadURL();
-  const objectPath = objectService.normalizeObjectEntityPath(uploadURL);
+  const ext = contentType.split("/")[1] || "bin";
+  const key = generateObjectKey(`legacy.${ext}`);
+  const uploadURL = await getUploadSignedUrl(key, contentType);
 
   const buffer = Buffer.from(base64Data, "base64");
 
@@ -59,6 +60,7 @@ export async function uploadFileDataToStorage(base64Data: string, contentType: s
     headers: {
       "Content-Type": contentType,
       "Content-Length": String(buffer.length),
+      "x-amz-acl": "public-read",
     },
   });
 
@@ -66,7 +68,7 @@ export async function uploadFileDataToStorage(base64Data: string, contentType: s
     throw new Error(`Upload failed: ${response.status}`);
   }
 
-  return objectPath;
+  return getPublicUrl(key);
 }
 
 function getInputExtension(format: string): string {
@@ -196,10 +198,10 @@ async function postProcessEpub(epubPath: string): Promise<void> {
       await execFileAsync("bash", ["-c",
         `cd "${tmpDir}" && zip -0 -X "${epubPath}" mimetype && zip -r -X "${epubPath}" . -x mimetype`
       ], { timeout: 30000 });
-      console.log(`Conversion: Post-processed EPUB HTML for better formatting`);
+      logger.info("Conversion: Post-processed EPUB HTML for better formatting");
     }
   } catch (err: any) {
-    console.warn(`Post-processing failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    logger.warn(`Post-processing failed (non-fatal): ${err.message?.slice(0, 200)}`);
   } finally {
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -209,7 +211,7 @@ async function postProcessEpub(epubPath: string): Promise<void> {
 
 export async function convertToEpub(bookId: string): Promise<void> {
   if (activeConversions.has(bookId)) {
-    console.log(`Conversion: Book ${bookId} is already being converted, skipping duplicate request`);
+    logger.info(`Conversion: Book ${bookId} is already being converted, skipping duplicate request`);
     return;
   }
 
@@ -225,13 +227,13 @@ export async function convertToEpub(bookId: string): Promise<void> {
 async function doConvertToEpub(bookId: string): Promise<void> {
   const book = await storage.getBook(bookId);
   if (!book) {
-    console.error(`Conversion: Book ${bookId} not found`);
+    logger.error(`Conversion: Book ${bookId} not found`);
     return;
   }
 
   if (!book.originalFileUrl) {
-    console.error(`Conversion: Book ${bookId} has no original file URL`);
-    await storage.updateBook(bookId, { conversionStatus: "failed" } as any);
+    logger.error(`Conversion: Book ${bookId} has no original file URL`);
+    await storage.updateBook(bookId, { conversionStatus: "failed" });
     return;
   }
 
@@ -239,12 +241,12 @@ async function doConvertToEpub(bookId: string): Promise<void> {
     await storage.updateBook(bookId, {
       epubFileUrl: book.originalFileUrl,
       conversionStatus: "completed",
-    } as any);
-    console.log(`Conversion: Book ${bookId} is already EPUB, skipping conversion`);
+    });
+    logger.info(`Conversion: Book ${bookId} is already EPUB, skipping conversion`);
     return;
   }
 
-  await storage.updateBook(bookId, { conversionStatus: "processing" } as any);
+  await storage.updateBook(bookId, { conversionStatus: "processing" });
 
   const inputExt = getInputExtension(book.originalFormat || "application/pdf");
   const inputPath = path.join(CONVERSION_DIR, `${bookId}${inputExt}`);
@@ -256,10 +258,10 @@ async function doConvertToEpub(bookId: string): Promise<void> {
   };
 
   try {
-    console.log(`Conversion: Downloading original file for book ${bookId}...`);
+    logger.info(`Conversion: Downloading original file for book ${bookId}...`);
     await downloadFromObjectStorage(book.originalFileUrl, inputPath);
 
-    console.log(`Conversion: Converting ${inputExt} to EPUB for book ${bookId}...`);
+    logger.info(`Conversion: Converting ${inputExt} to EPUB for book ${bookId}...`);
 
     const calibreArgs = [
       inputPath,
@@ -283,9 +285,9 @@ async function doConvertToEpub(bookId: string): Promise<void> {
     } catch (calibreErr: any) {
       const stderr = calibreErr.stderr?.slice(0, 500) || "";
       const stdout = calibreErr.stdout?.slice(0, 500) || "";
-      console.warn(`Calibre conversion failed for book ${bookId}:`, calibreErr.message?.slice(0, 300));
-      if (stderr) console.warn(`Calibre stderr: ${stderr}`);
-      if (stdout) console.warn(`Calibre stdout: ${stdout}`);
+      logger.warn(`Calibre conversion failed for book ${bookId}: ${calibreErr.message?.slice(0, 300)}`);
+      if (stderr) logger.warn(`Calibre stderr: ${stderr}`);
+      if (stdout) logger.warn(`Calibre stdout: ${stdout}`);
 
       if (inputExt === ".pdf") {
         throw new Error(`PDF conversion failed: ${calibreErr.message?.slice(0, 200)}`);
@@ -312,25 +314,25 @@ async function doConvertToEpub(bookId: string): Promise<void> {
     }
 
     if (inputExt === ".pdf") {
-      console.log(`Conversion: Post-processing EPUB for book ${bookId}...`);
+      logger.info(`Conversion: Post-processing EPUB for book ${bookId}...`);
       await postProcessEpub(outputPath);
     }
 
     const finalSize = fs.statSync(outputPath).size;
-    console.log(`Conversion: Uploading EPUB for book ${bookId} (${(finalSize / 1024).toFixed(1)} KB)...`);
+    logger.info(`Conversion: Uploading EPUB for book ${bookId} (${(finalSize / 1024).toFixed(1)} KB)...`);
     const epubObjectPath = await uploadToObjectStorage(outputPath, "application/epub+zip");
 
     await storage.updateBook(bookId, {
       epubFileUrl: epubObjectPath,
       conversionStatus: "completed",
-    } as any);
+    });
 
-    console.log(`Conversion: Book ${bookId} conversion completed successfully`);
+    logger.info(`Conversion: Book ${bookId} conversion completed successfully`);
   } catch (error: any) {
-    console.error(`Conversion: Failed for book ${bookId}:`, error.message);
+    logger.error({ err: error }, `Conversion: Failed for book ${bookId}`);
     await storage.updateBook(bookId, {
       conversionStatus: "failed",
-    } as any);
+    });
   } finally {
     cleanup();
   }
@@ -339,7 +341,7 @@ async function doConvertToEpub(bookId: string): Promise<void> {
 export function triggerConversion(bookId: string): void {
   setImmediate(() => {
     convertToEpub(bookId).catch(err => {
-      console.error(`Background conversion error for book ${bookId}:`, err.message);
+      logger.error({ err }, `Background conversion error for book ${bookId}`);
     });
   });
 }

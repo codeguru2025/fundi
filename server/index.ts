@@ -7,6 +7,11 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import pino from "pino";
+import cookieParser from "cookie-parser";
+import { pool } from "./db";
+import { validateEnv } from "./env-check";
+import { csrfCookie, csrfProtect } from "./csrf";
+import "./types"; // Express.User type augmentation
 
 export const logger = pino({
   level: process.env.LOG_LEVEL || "info",
@@ -14,6 +19,9 @@ export const logger = pino({
     transport: { target: "pino-pretty", options: { colorize: true } },
   }),
 });
+
+// Fail fast if required env vars are missing
+validateEnv();
 
 const app = express();
 const httpServer = createServer(app);
@@ -27,10 +35,36 @@ declare module "http" {
 // ── Security middleware ─────────────────────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // allow CDN assets
-  contentSecurityPolicy: false, // configure separately once domain is known
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      mediaSrc: ["'self'", "blob:", "https:"],
+      connectSrc: ["'self'", "https:", "blob:"],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      upgradeInsecureRequests: [],
+    },
+  },
 }));
+
+const allowedOrigins = process.env.APP_URL
+  ? [process.env.APP_URL]
+  : ["http://localhost:5000", "http://localhost:3000"];
 app.use(cors({
-  origin: process.env.APP_URL || true, // lock to APP_URL in production
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests with no origin (server-to-server, mobile apps, curl)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
 }));
 
@@ -57,20 +91,32 @@ app.use("/api/certificates/payments", paymentLimiter);
 app.use("/api/courses/:courseId/payment", paymentLimiter);
 
 // ── Health check (required by DO App Platform) ──────────────────────────────
-app.get("/healthz", (_req, res) => {
-  res.status(200).json({ status: "ok", ts: new Date().toISOString() });
+app.get("/healthz", async (_req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.status(200).json({ status: "ok", ts: new Date().toISOString() });
+  } catch (err) {
+    logger.error(err, "Health check failed — DB unreachable");
+    res.status(503).json({ status: "unhealthy", ts: new Date().toISOString() });
+  }
 });
 
-// ── Body parsing — 1MB global default, parse raw body for webhook verification
+// ── Body parsing — 10MB for course metadata, parse raw body for webhook verification
+// Note: large file uploads bypass the server via pre-signed URLs to DO Spaces.
 app.use(
   express.json({
-    limit: "1mb",
+    limit: "10mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
-app.use(express.urlencoded({ extended: false, limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+app.use(cookieParser());
+
+// ── CSRF protection (double-submit cookie) ──────────────────────────────────
+app.use("/api/", csrfCookie);
+app.use("/api/", csrfProtect);
 
 // ── Static uploads (local disk fallback, served with caching headers) ───────
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads"), {
@@ -79,16 +125,6 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads"), {
   etag: true,
   lastModified: true,
 }));
-
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
 
 // ── Request logging — method, path, status, duration only (no response body) 
 app.use((req, res, next) => {
@@ -115,13 +151,17 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
 
     logger.error({ err, status }, "Unhandled error");
 
     if (res.headersSent) {
       return next(err);
     }
+
+    // Never leak internal error details to the client for server errors
+    const message = status >= 500
+      ? "Internal Server Error"
+      : (err.message || "Internal Server Error");
 
     return res.status(status).json({ message });
   });
@@ -162,4 +202,13 @@ app.use((req, res, next) => {
 
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
+
+  // ── Catch unhandled promise rejections and uncaught exceptions ────────────
+  process.on("unhandledRejection", (reason: unknown) => {
+    logger.error({ reason }, "Unhandled promise rejection");
+  });
+  process.on("uncaughtException", (err: Error) => {
+    logger.fatal({ err }, "Uncaught exception — shutting down");
+    shutdown();
+  });
 })();

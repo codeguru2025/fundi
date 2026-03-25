@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import { csrfHeaders } from "@/lib/csrf";
 
 const SESSION_KEY = "fundi_analytics_session";
 
@@ -16,7 +17,7 @@ export function trackPageView(path: string, contentType?: string, contentId?: st
   const sessionId = getSessionId();
   fetch("/api/analytics/track", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-session-id": sessionId },
+    headers: csrfHeaders({ "Content-Type": "application/json", "x-session-id": sessionId }),
     body: JSON.stringify({
       path,
       referrer: document.referrer || null,

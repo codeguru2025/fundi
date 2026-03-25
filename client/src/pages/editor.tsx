@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { csrfHeaders } from "@/lib/csrf";
 import { useProject } from "@/lib/project-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
@@ -530,10 +531,15 @@ function PublishStep() {
     if (!manuscript.fileData || !manuscript.fileType) return null;
 
     try {
+      const ext = manuscript.fileType.split("/")[1] || "bin";
       const res = await fetch("/api/upload/request-signed-url", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
+        body: JSON.stringify({
+          filename: `manuscript-${Date.now()}.${ext}`,
+          contentType: manuscript.fileType,
+        }),
       });
       if (!res.ok) throw new Error("Failed to get upload URL");
       const data = await res.json();

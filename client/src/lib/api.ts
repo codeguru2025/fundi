@@ -1,4 +1,5 @@
 import type { Book, InsertBook, Sale, Settlement, Course } from "@shared/schema";
+import { csrfHeaders } from "./csrf";
 
 const API_BASE = "/api";
 
@@ -30,9 +31,7 @@ export class PaymentRequiredError extends Error {
 export async function createBook(book: InsertBook & { paymentConfirmed?: boolean }): Promise<Book> {
   const response = await fetch(`${API_BASE}/books`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(book),
   });
@@ -49,9 +48,7 @@ export async function createBook(book: InsertBook & { paymentConfirmed?: boolean
 export async function updateBook(id: string, updates: Partial<InsertBook>): Promise<Book> {
   const response = await fetch(`${API_BASE}/books/${id}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(updates),
   });
@@ -64,6 +61,7 @@ export async function updateBook(id: string, updates: Partial<InsertBook>): Prom
 export async function deleteBook(id: string): Promise<void> {
   const response = await fetch(`${API_BASE}/books/${id}`, {
     method: "DELETE",
+    headers: csrfHeaders(),
     credentials: "include",
   });
   if (!response.ok) {
@@ -74,6 +72,7 @@ export async function deleteBook(id: string): Promise<void> {
 export async function renewBookSubscription(id: string): Promise<Book> {
   const response = await fetch(`${API_BASE}/books/${id}/renew-subscription`, {
     method: "POST",
+    headers: csrfHeaders(),
     credentials: "include",
   });
   if (!response.ok) {
@@ -99,9 +98,7 @@ export async function createSale(sale: {
 }): Promise<Sale> {
   const response = await fetch(`${API_BASE}/sales`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(sale),
   });
@@ -122,9 +119,7 @@ export async function fetchSettlements(): Promise<Settlement[]> {
 export async function markSettlementPaid(id: string, paynowReference?: string): Promise<Settlement> {
   const response = await fetch(`${API_BASE}/admin/settlements/${id}/mark-paid`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ paynowReference }),
   });
@@ -151,9 +146,7 @@ export async function fetchPaynowConfig(): Promise<PaynowConfigResponse> {
 export async function savePaynowConfig(integrationId: string, integrationKey: string): Promise<PaynowConfigResponse> {
   const response = await fetch(`${API_BASE}/paynow-config`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ integrationId, integrationKey }),
   });
@@ -250,7 +243,7 @@ export async function fetchCourse(id: string): Promise<any> {
 export async function createCourse(data: any): Promise<Course> {
   const response = await fetch(`${API_BASE}/courses`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(data),
   });
@@ -267,7 +260,7 @@ export async function createCourse(data: any): Promise<Course> {
 export async function checkCoursePurchase(courseId: string, buyerToken: string): Promise<boolean> {
   const response = await fetch(`${API_BASE}/courses/purchases/check`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ courseId, buyerToken }),
   });
@@ -284,7 +277,7 @@ export async function initiateCoursePayment(data: {
 }): Promise<any> {
   const response = await fetch(`${API_BASE}/courses/payments/initiate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(data),
   });
@@ -300,7 +293,7 @@ export async function checkCoursePaymentStatus(data: {
 }): Promise<any> {
   const response = await fetch(`${API_BASE}/courses/payments/check-status`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(data),
   });
@@ -316,6 +309,7 @@ export async function fetchLessonProgress(courseId: string): Promise<any[]> {
 export async function markLessonComplete(courseId: string, lessonId: string): Promise<void> {
   await fetch(`${API_BASE}/courses/${courseId}/lessons/${lessonId}/complete`, {
     method: "POST",
+    headers: csrfHeaders(),
     credentials: "include",
   });
 }
@@ -329,7 +323,7 @@ export async function fetchPendingCourses(): Promise<any[]> {
 export async function approveCourse(courseId: string, comment?: string): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/courses/${courseId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ comment }),
   });
@@ -340,7 +334,7 @@ export async function approveCourse(courseId: string, comment?: string): Promise
 export async function rejectCourse(courseId: string, comment?: string): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/courses/${courseId}/reject`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ comment }),
   });
@@ -357,7 +351,7 @@ export async function fetchPendingBooks(): Promise<any[]> {
 export async function approveBook(bookId: string, comment?: string): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/books/${bookId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ comment }),
   });
@@ -368,7 +362,7 @@ export async function approveBook(bookId: string, comment?: string): Promise<any
 export async function rejectBook(bookId: string, comment?: string): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/books/${bookId}/reject`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ comment }),
   });
@@ -379,7 +373,7 @@ export async function rejectBook(bookId: string, comment?: string): Promise<any>
 export async function toggleBookVisibility(bookId: string, comment?: string): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/books/${bookId}/toggle-visibility`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ comment }),
   });
@@ -390,7 +384,7 @@ export async function toggleBookVisibility(bookId: string, comment?: string): Pr
 export async function toggleCourseVisibility(courseId: string, comment?: string): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/courses/${courseId}/toggle-visibility`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ comment }),
   });
@@ -407,7 +401,7 @@ export async function fetchAdminAllCourses(): Promise<any[]> {
 export async function adminUpdateCourse(courseId: string, data: { title?: string; description?: string; price?: number; category?: string; cover?: string }): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/courses/${courseId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify(data),
   });
@@ -418,6 +412,7 @@ export async function adminUpdateCourse(courseId: string, data: { title?: string
 export async function adminDeleteCourse(courseId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/admin/courses/${courseId}`, {
     method: "DELETE",
+    headers: csrfHeaders(),
     credentials: "include",
   });
   if (!response.ok) throw new Error("Failed to delete course");
@@ -432,7 +427,7 @@ export async function fetchAdminCourseFull(courseId: string): Promise<any> {
 async function adminApiCall(method: string, path: string, body?: any): Promise<any> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: body ? csrfHeaders({ "Content-Type": "application/json" }) : csrfHeaders(),
     credentials: "include",
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -466,6 +461,7 @@ export async function fetchAdminUsers(): Promise<any[]> {
 export async function toggleUserAdmin(userId: string): Promise<any> {
   const response = await fetch(`${API_BASE}/admin/users/${userId}/toggle-admin`, {
     method: "POST",
+    headers: csrfHeaders(),
     credentials: "include",
   });
   if (!response.ok) {
@@ -490,7 +486,7 @@ export async function fetchQuizQuestions(quizId: string): Promise<any[]> {
 export async function submitQuizAttempt(quizId: string, answers: number[], courseId: string): Promise<any> {
   const res = await fetch(`${API_BASE}/quizzes/${quizId}/attempt`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ answers, courseId }),
   });
@@ -519,7 +515,7 @@ export async function fetchCourseLabs(courseId: string): Promise<any[]> {
 export async function submitLabCompletion(labId: string, courseId: string, submissionText?: string): Promise<any> {
   const res = await fetch(`${API_BASE}/labs/${labId}/submit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ courseId, submissionText }),
   });
@@ -542,6 +538,7 @@ export async function fetchCourseCertificate(courseId: string): Promise<any> {
 export async function generateCertificate(courseId: string): Promise<any> {
   const res = await fetch(`${API_BASE}/courses/${courseId}/certificate`, {
     method: "POST",
+    headers: csrfHeaders(),
     credentials: "include",
   });
   if (!res.ok) {
@@ -560,7 +557,7 @@ export async function verifyCertificate(token: string): Promise<any> {
 export async function initiateCertificatePayment(courseId: string, data: { email?: string; phone?: string; paymentMethod?: string }): Promise<any> {
   const res = await fetch(`${API_BASE}/certificates/payments/initiate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ courseId, ...data }),
   });
@@ -574,7 +571,7 @@ export async function initiateCertificatePayment(courseId: string, data: { email
 export async function checkCertificatePaymentStatus(pollUrl: string, courseId: string): Promise<any> {
   const res = await fetch(`${API_BASE}/certificates/payments/check-status`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: csrfHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ pollUrl, courseId }),
   });

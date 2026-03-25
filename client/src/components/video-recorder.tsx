@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { csrfHeaders } from "@/lib/csrf";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -224,8 +225,12 @@ export function VideoRecorder({ onVideoUploaded, onClose }: VideoRecorderProps) 
     try {
       const signedRes = await fetch("/api/upload/request-signed-url", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
+        body: JSON.stringify({
+          filename: `recording-${Date.now()}.webm`,
+          contentType: recordedBlob.type || "video/webm",
+        }),
       });
       if (!signedRes.ok) throw new Error("Failed to get upload URL");
       const { uploadURL, objectPath } = await signedRes.json();

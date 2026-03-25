@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { csrfHeaders } from "@/lib/csrf";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { fetchBook } from "@/lib/api";
@@ -33,7 +34,7 @@ async function checkPurchaseFromServer(bookId: string, buyerToken: string): Prom
   try {
     const response = await fetch("/api/purchases/check", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: csrfHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ bookId, buyerToken }),
     });
     const data = await response.json();
@@ -471,7 +472,7 @@ export default function ReaderPage() {
   useEffect(() => {
     if (hasAccess && !hasEpub && !isConverting && !conversionFailed && conversionStatus === "none" && hasLegacyFile && !autoConvertTriggered) {
       setAutoConvertTriggered(true);
-      fetch(`/api/books/${params.id}/reconvert`, { method: "POST", credentials: "include" })
+      fetch(`/api/books/${params.id}/reconvert`, { method: "POST", headers: csrfHeaders(), credentials: "include" })
         .then(() => refetchConversion())
         .catch(console.error);
     }
@@ -576,7 +577,7 @@ export default function ReaderPage() {
           <div className="flex gap-3 justify-center">
             <Button
               onClick={async () => {
-                await fetch(`/api/books/${params.id}/reconvert`, { method: "POST", credentials: "include" });
+                await fetch(`/api/books/${params.id}/reconvert`, { method: "POST", headers: csrfHeaders(), credentials: "include" });
                 refetchConversion();
               }}
               data-testid="button-retry-conversion"

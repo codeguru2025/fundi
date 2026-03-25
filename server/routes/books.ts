@@ -6,12 +6,13 @@ import { insertBookSchema } from "@shared/schema";
 import { isAuthenticated, isAdmin } from "../auth/googleAuth";
 import { stripBookContent, stripBooksContent, UPLOAD_FEE, MONTHLY_SUBSCRIPTION, COMMISSION_RATE } from "./types";
 import { triggerConversion } from "../conversion-service";
+import { logger } from "../index";
 
 export function registerBookRoutes(app: Express, _httpServer: Server): void {
   // Claim book ownership
   app.post("/api/books/:id/claim", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
       if (book.authorId === userId) return res.json({ claimed: true, message: "You already own this book" });
@@ -26,7 +27,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
         return res.json({ claimed: true, message: "Book claimed successfully" });
       }
       return res.status(403).json({ error: "Cannot claim this book - author name doesn't match your account" });
-    } catch (error) { console.error("Error claiming book:", error); res.status(500).json({ error: "Failed to claim book" }); }
+    } catch (error) { logger.error({ err: error }, "Error claiming book"); res.status(500).json({ error: "Failed to claim book" }); }
   });
 
   // Check book access
@@ -34,7 +35,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
     try {
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
-      const userId = (req.user as any)?.id;
+      const userId = req.user?.id;
       const buyerToken = req.query.buyerToken as string | undefined;
       let isAuthor = false;
       let isAdminUser = false;
@@ -55,7 +56,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       }
       const hasAccess = isAuthor || isAdminUser || isPurchased || hasSale;
       res.json({ isAuthor, isPurchased: isPurchased || hasSale, hasAccess });
-    } catch (error) { console.error("Error checking book access:", error); res.status(500).json({ error: "Failed to check access" }); }
+    } catch (error) { logger.error({ err: error }, "Error checking book access"); res.status(500).json({ error: "Failed to check access" }); }
   });
 
   // Featured books
@@ -63,7 +64,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
     try {
       const featuredTitles = ["Reflections of a Relentless Hustler", "Making Money While Sleeping"];
       res.json(await storage.getFeaturedBooks(featuredTitles));
-    } catch (error) { console.error("Error fetching featured books:", error); res.json([]); }
+    } catch (error) { logger.error({ err: error }, "Error fetching featured books"); res.json([]); }
   });
 
   // List books (with optional pagination)
@@ -79,13 +80,13 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       }
       const result = await storage.getActiveBooksPaginated(page, pageSize, search, category);
       res.json({ data: stripBooksContent(result.data), total: result.total, page, pageSize, totalPages: Math.ceil(result.total / pageSize) });
-    } catch (error) { console.error("Error fetching books:", error); res.status(500).json({ error: "Failed to fetch books" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching books"); res.status(500).json({ error: "Failed to fetch books" }); }
   });
 
   // All books (admin)
   app.get("/api/books/all", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try { res.json(stripBooksContent(await storage.getAllBooks())); }
-    catch (error) { console.error("Error fetching all books:", error); res.status(500).json({ error: "Failed to fetch books" }); }
+    catch (error) { logger.error({ err: error }, "Error fetching all books"); res.status(500).json({ error: "Failed to fetch books" }); }
   });
 
   // Single book
@@ -94,13 +95,13 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
       res.json(book);
-    } catch (error) { console.error("Error fetching book:", error); res.status(500).json({ error: "Failed to fetch book" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching book"); res.status(500).json({ error: "Failed to fetch book" }); }
   });
 
   // Publish check
   app.post("/api/publish/check", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const authorId = (req.user as any)?.id || req.body.authorId;
+      const authorId = req.user!.id || req.body.authorId;
       const user = authorId ? await storage.getUser(authorId) : null;
       const userIsAdmin = user?.isAdmin === true;
       if (!authorId) {
@@ -114,15 +115,15 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
         monthlyFee: userIsAdmin ? 0 : MONTHLY_SUBSCRIPTION,
         commission: COMMISSION_RATE * 100, existingBookCount: totalContent, isAdmin: userIsAdmin,
       });
-    } catch (error) { console.error("Error checking publish requirements:", error); res.status(500).json({ error: "Failed to check requirements" }); }
+    } catch (error) { logger.error({ err: error }, "Error checking publish requirements"); res.status(500).json({ error: "Failed to check requirements" }); }
   });
 
   // Create book
   app.post("/api/books", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const bookData = insertBookSchema.parse(req.body);
-      const authorId = (req.user as any)?.id || bookData.authorId;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const authorId = req.user!.id || bookData.authorId;
+      const userIsAdmin = req.user!.isAdmin === true;
       let isFirstContent = true;
       let uploadFeePaid = false;
       if (authorId) { isFirstContent = (await storage.getUserContentCount(authorId)) === 0; }
@@ -169,7 +170,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: "Invalid book data", details: (error as z.ZodError).errors });
-      console.error("Error creating book:", error);
+      logger.error({ err: error }, "Error creating book");
       res.status(500).json({ error: "Failed to create book" });
     }
   });
@@ -177,8 +178,8 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
   // Update book
   app.patch("/api/books/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const userId = req.user!.id;
+      const userIsAdmin = req.user!.isAdmin === true;
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
       if (book.authorId !== userId && !userIsAdmin) return res.status(403).json({ error: "Not authorized to edit this book" });
@@ -186,7 +187,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       res.json(await storage.updateBook(req.params.id as string, updates));
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: "Invalid book data", details: (error as z.ZodError).errors });
-      console.error("Error updating book:", error);
+      logger.error({ err: error }, "Error updating book");
       res.status(500).json({ error: "Failed to update book" });
     }
   });
@@ -197,7 +198,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
       res.json({ conversionStatus: book.conversionStatus || "none", epubFileUrl: book.epubFileUrl, originalFormat: book.originalFormat, hasLegacyFile: !book.originalFileUrl && !!book.fileData });
-    } catch (error) { console.error("Error fetching conversion status:", error); res.status(500).json({ error: "Failed to fetch conversion status" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching conversion status"); res.status(500).json({ error: "Failed to fetch conversion status" }); }
   });
 
   // Reconvert
@@ -205,8 +206,8 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
     try {
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
-      const userId = (req.user as any)?.id;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const userId = req.user!.id;
+      const userIsAdmin = req.user!.isAdmin === true;
       if (book.authorId !== userId && !userIsAdmin) return res.status(403).json({ error: "Not authorized" });
       if (book.conversionStatus === "processing" || book.conversionStatus === "pending") return res.json({ message: "Conversion already in progress" });
       let fileUrl = book.originalFileUrl;
@@ -214,35 +215,35 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
         try {
           const { uploadFileDataToStorage } = await import("../conversion-service");
           fileUrl = await uploadFileDataToStorage(book.fileData, book.fileType);
-          await storage.updateBook(req.params.id as string, { originalFileUrl: fileUrl, originalFormat: book.fileType } as any);
+          await storage.updateBook(req.params.id as string, { originalFileUrl: fileUrl, originalFormat: book.fileType });
         } catch (migErr: any) {
           return res.status(500).json({ error: "Failed to upload book file for conversion" });
         }
       }
       if (!fileUrl) return res.status(400).json({ error: "No original file to convert" });
-      await storage.updateBook(req.params.id as string, { conversionStatus: "pending", epubFileUrl: null } as any);
+      await storage.updateBook(req.params.id as string, { conversionStatus: "pending", epubFileUrl: null });
       triggerConversion(req.params.id as string);
       res.json({ message: "Conversion restarted" });
-    } catch (error) { console.error("Error reconverting:", error); res.status(500).json({ error: "Failed to reconvert" }); }
+    } catch (error) { logger.error({ err: error }, "Error reconverting"); res.status(500).json({ error: "Failed to reconvert" }); }
   });
 
   // Renew book subscription
   app.post("/api/books/:id/renew-subscription", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
-      if (book.authorId !== userId && !(req.user as any)?.isAdmin) return res.status(403).json({ error: "Not authorized" });
+      if (book.authorId !== userId && !req.user!.isAdmin) return res.status(403).json({ error: "Not authorized" });
       const oneMonthFromNow = new Date();
       oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
       res.json(await storage.updateBook(req.params.id as string, { subscriptionActive: true, isActive: true, subscriptionExpiresAt: oneMonthFromNow }));
-    } catch (error) { console.error("Error renewing subscription:", error); res.status(500).json({ error: "Failed to renew subscription" }); }
+    } catch (error) { logger.error({ err: error }, "Error renewing subscription"); res.status(500).json({ error: "Failed to renew subscription" }); }
   });
 
   // Delete book
   app.delete("/api/books/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try { await storage.deleteBook(req.params.id as string); res.status(204).send(); }
-    catch (error) { console.error("Error deleting book:", error); res.status(500).json({ error: "Failed to delete book" }); }
+    catch (error) { logger.error({ err: error }, "Error deleting book"); res.status(500).json({ error: "Failed to delete book" }); }
   });
 
   // Sales CRUD
@@ -262,7 +263,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       const sellerEarnings = saleAmount - commission;
       const sale = await storage.createSale({ bookId, buyerId, sellerId: contentSellerId, amount: saleAmount, commission, sellerEarnings, paynowReference, status: "completed" });
       res.status(201).json(sale);
-    } catch (error) { console.error("Error creating sale:", error); res.status(500).json({ error: "Failed to record sale" }); }
+    } catch (error) { logger.error({ err: error }, "Error creating sale"); res.status(500).json({ error: "Failed to record sale" }); }
   });
 
   app.get("/api/sales", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -270,7 +271,7 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       const page = parseInt(req.query.page as string) || 1;
       const pageSize = Math.min(parseInt(req.query.pageSize as string) || 50, 100);
       res.json((await storage.getEnrichedSalesPaginated(page, pageSize)).data);
-    } catch (error) { console.error("Error fetching sales:", error); res.status(500).json({ error: "Failed to fetch sales" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching sales"); res.status(500).json({ error: "Failed to fetch sales" }); }
   });
 
   app.get("/api/admin/settlements", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -278,12 +279,12 @@ export function registerBookRoutes(app: Express, _httpServer: Server): void {
       const page = parseInt(req.query.page as string) || 1;
       const pageSize = Math.min(parseInt(req.query.pageSize as string) || 50, 100);
       res.json((await storage.getSettlementsPaginated(page, pageSize)).data);
-    } catch (error) { console.error("Error fetching settlements:", error); res.status(500).json({ error: "Failed to fetch settlements" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching settlements"); res.status(500).json({ error: "Failed to fetch settlements" }); }
   });
 
   app.post("/api/admin/settlements/:id/mark-paid", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       res.json(await storage.updateSettlement(req.params.id as string, { status: "paid", paidAt: new Date(), paynowReference: req.body.paynowReference }));
-    } catch (error) { console.error("Error marking settlement paid:", error); res.status(500).json({ error: "Failed to update settlement" }); }
+    } catch (error) { logger.error({ err: error }, "Error marking settlement paid"); res.status(500).json({ error: "Failed to update settlement" }); }
   });
 }

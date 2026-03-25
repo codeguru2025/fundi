@@ -1,8 +1,60 @@
 ﻿import type { Express, Request, Response } from "express";
 import type { Server } from "http";
+import { z } from "zod";
 import { storage, db } from "../storage";
 import { isAuthenticated, isAdmin } from "../auth/googleAuth";
 import { UPLOAD_FEE, MONTHLY_SUBSCRIPTION, COMMISSION_RATE, DEFAULT_CERTIFICATE_FEE } from "./types";
+import { logger } from "../index";
+
+const lessonSchema = z.object({
+  title: z.string().min(1, "Lesson title is required"),
+  contentType: z.enum(["video", "text", "image"]).optional(),
+  videoUrl: z.string().nullable().optional(),
+  textContent: z.string().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
+  voiceoverUrl: z.string().nullable().optional(),
+  duration: z.number().nullable().optional(),
+  isFreePreview: z.boolean().optional(),
+});
+
+const quizQuestionSchema = z.object({
+  prompt: z.string().min(1, "Question text is required"),
+  options: z.array(z.string()).min(2, "At least 2 options required"),
+  correctIndex: z.number().int().min(0),
+  explanation: z.string().nullable().optional(),
+});
+
+const quizSchema = z.object({
+  title: z.string().min(1, "Quiz title is required"),
+  quizType: z.string().optional(),
+  passingScore: z.number().int().min(0).max(100).optional(),
+  lessonId: z.string().nullable().optional(),
+  questions: z.array(quizQuestionSchema).min(1, "Each quiz must have at least 1 question"),
+});
+
+const moduleSchema = z.object({
+  title: z.string().min(1, "Module title is required"),
+  lessons: z.array(lessonSchema).optional(),
+  quizzes: z.array(quizSchema).optional(),
+});
+
+const labSchema = z.object({
+  title: z.string().min(1, "Lab title is required"),
+  instructions: z.string().min(1, "Lab instructions are required"),
+  resources: z.string().nullable().optional(),
+});
+
+const createCourseSchema = z.object({
+  title: z.string().min(1, "Course title is required").max(200),
+  description: z.string().optional(),
+  price: z.number().min(0).optional(),
+  category: z.string().optional(),
+  cover: z.string().nullable().optional(),
+  certificateFee: z.union([z.number(), z.string()]).optional(),
+  paymentConfirmed: z.boolean().optional(),
+  modules: z.array(moduleSchema).optional(),
+  labs: z.array(labSchema).optional(),
+});
 
 export function registerCourseRoutes(app: Express, _httpServer: Server): void {
   // List courses
@@ -16,15 +68,15 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
       if (!hasPageParam && !search && !category) return res.json(await storage.getActiveCourses());
       const result = await storage.getActiveCoursesPaginated(page, pageSize, search, category);
       res.json({ data: result.data, total: result.total, page, pageSize, totalPages: Math.ceil(result.total / pageSize) });
-    } catch (error) { console.error("Error fetching courses:", error); res.status(500).json({ error: "Failed to fetch courses" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching courses"); res.status(500).json({ error: "Failed to fetch courses" }); }
   });
 
   // Instructor's courses
   app.get("/api/courses/instructor/mine", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       res.json(await storage.getCoursesByInstructor(userId));
-    } catch (error) { console.error("Error fetching instructor courses:", error); res.status(500).json({ error: "Failed to fetch courses" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching instructor courses"); res.status(500).json({ error: "Failed to fetch courses" }); }
   });
 
   // Single course with modules
@@ -41,7 +93,7 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
       }
       const modulesWithLessons = courseModules.map(mod => ({ ...mod, lessons: lessonsByModule.get(mod.id) || [] }));
       res.json({ ...course, modules: modulesWithLessons, lessons: courseLessons });
-    } catch (error) { console.error("Error fetching course:", error); res.status(500).json({ error: "Failed to fetch course" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching course"); res.status(500).json({ error: "Failed to fetch course" }); }
   });
 
   // Check course access
@@ -49,7 +101,7 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
     try {
       const course = await storage.getCourse(req.params.id as string);
       if (!course) return res.status(404).json({ error: "Course not found" });
-      const userId = (req.user as any)?.id;
+      const userId = req.user?.id;
       const buyerToken = req.query.buyerToken as string | undefined;
       let isInstructor = false, isAdminUser = false;
       if (userId) {
@@ -69,41 +121,23 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
       }
       const hasAccess = isInstructor || isAdminUser || isPurchased || hasSale;
       res.json({ isInstructor, isPurchased: isPurchased || hasSale, hasAccess });
-    } catch (error) { console.error("Error checking course access:", error); res.status(500).json({ error: "Failed to check access" }); }
+    } catch (error) { logger.error({ err: error }, "Error checking course access"); res.status(500).json({ error: "Failed to check access" }); }
   });
 
   // Create course
   app.post("/api/courses", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ error: "User not found" });
       const userIsAdmin = user.isAdmin === true;
-      const { title, description, price, category, cover, modules: courseModules, labs: courseLabs, certificateFee } = req.body;
+      const parsed = createCourseSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid course data", details: parsed.error.flatten().fieldErrors });
+      const { title, description, price, category, cover, modules: courseModules, labs: courseLabs, certificateFee, paymentConfirmed } = parsed.data;
       const contentCount = await storage.getUserContentCount(userId);
       const isFirst = contentCount === 0;
       if (!userIsAdmin && !isFirst) {
-        const { paymentConfirmed } = req.body;
         if (!paymentConfirmed) return res.status(402).json({ error: "Payment required", uploadFee: UPLOAD_FEE, message: `$${UPLOAD_FEE} upload fee required for additional content` });
-      }
-      // Validate quizzes
-      if (courseModules) {
-        for (const mod of courseModules) {
-          if (mod.quizzes && Array.isArray(mod.quizzes)) {
-            for (const quiz of mod.quizzes) {
-              if (!quiz.title?.trim()) return res.status(400).json({ error: "All quizzes must have a title" });
-              if (!quiz.questions || !Array.isArray(quiz.questions) || quiz.questions.length === 0) return res.status(400).json({ error: "Each quiz must have at least 1 question" });
-              for (const q of quiz.questions) {
-                if (!q.prompt?.trim()) return res.status(400).json({ error: "All quiz questions must have question text" });
-                const filledOptions = (q.options || []).filter((o: string) => o.trim());
-                if (filledOptions.length < 2) return res.status(400).json({ error: "Each quiz question must have at least 2 answer options" });
-                if (q.correctIndex == null || q.correctIndex < 0 || q.correctIndex >= (q.options || []).length || !(q.options[q.correctIndex]?.trim())) {
-                  return res.status(400).json({ error: "Each quiz question must have a valid correct answer selected" });
-                }
-              }
-            }
-          }
-        }
       }
       const oneMonthFromNow = new Date();
       oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
@@ -118,7 +152,7 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
           isApproved: userIsAdmin, isActive: true, subscriptionActive: true,
           subscriptionExpiresAt: userIsAdmin ? null : oneMonthFromNow,
           uploadFeePaid: true, totalLessons,
-          certificateFee: certificateFee != null ? parseFloat(certificateFee) : DEFAULT_CERTIFICATE_FEE,
+          certificateFee: certificateFee != null ? parseFloat(String(certificateFee)) : DEFAULT_CERTIFICATE_FEE,
         }).returning();
         if (courseModules && Array.isArray(courseModules)) {
           for (let mIdx = 0; mIdx < courseModules.length; mIdx++) {
@@ -166,73 +200,73 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
         return newCourse;
       });
       res.status(201).json(course);
-    } catch (error) { console.error("Error creating course:", error); res.status(500).json({ error: "Failed to create course" }); }
+    } catch (error) { logger.error({ err: error }, "Error creating course"); res.status(500).json({ error: "Failed to create course" }); }
   });
 
   // Update course
   app.patch("/api/courses/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const userId = req.user!.id;
+      const userIsAdmin = req.user!.isAdmin === true;
       const existing = await storage.getCourse(req.params.id as string);
       if (!existing) return res.status(404).json({ error: "Course not found" });
       if (existing.instructorId !== userId && !userIsAdmin) return res.status(403).json({ error: "Not authorized to edit this course" });
       res.json(await storage.updateCourse(req.params.id as string, req.body));
-    } catch (error) { console.error("Error updating course:", error); res.status(500).json({ error: "Failed to update course" }); }
+    } catch (error) { logger.error({ err: error }, "Error updating course"); res.status(500).json({ error: "Failed to update course" }); }
   });
 
   // Delete course
   app.delete("/api/courses/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const userId = req.user!.id;
+      const userIsAdmin = req.user!.isAdmin === true;
       const course = await storage.getCourse(req.params.id as string);
       if (!course) return res.status(404).json({ error: "Course not found" });
       if (course.instructorId !== userId && !userIsAdmin) return res.status(403).json({ error: "Not authorized to delete this course" });
       await storage.deleteCourse(req.params.id as string);
       res.status(204).send();
-    } catch (error) { console.error("Error deleting course:", error); res.status(500).json({ error: "Failed to delete course" }); }
+    } catch (error) { logger.error({ err: error }, "Error deleting course"); res.status(500).json({ error: "Failed to delete course" }); }
   });
 
   // Renew course subscription
   app.post("/api/courses/:id/renew-subscription", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       const course = await storage.getCourse(req.params.id as string);
       if (!course) return res.status(404).json({ error: "Course not found" });
-      if (course.instructorId !== userId && !(req.user as any)?.isAdmin) return res.status(403).json({ error: "Not authorized" });
+      if (course.instructorId !== userId && !req.user!.isAdmin) return res.status(403).json({ error: "Not authorized" });
       const oneMonthFromNow = new Date();
       oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
       res.json(await storage.updateCourse(req.params.id as string, { subscriptionActive: true, isActive: true, subscriptionExpiresAt: oneMonthFromNow }));
-    } catch (error) { console.error("Error renewing course subscription:", error); res.status(500).json({ error: "Failed to renew subscription" }); }
+    } catch (error) { logger.error({ err: error }, "Error renewing course subscription"); res.status(500).json({ error: "Failed to renew subscription" }); }
   });
 
   // Lesson progress
   app.get("/api/courses/:courseId/progress", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       res.json(await storage.getLessonProgress(req.params.courseId as string, userId));
-    } catch (error) { console.error("Error fetching progress:", error); res.status(500).json({ error: "Failed to fetch progress" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching progress"); res.status(500).json({ error: "Failed to fetch progress" }); }
   });
 
   app.post("/api/courses/:courseId/lessons/:lessonId/complete", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       await storage.markLessonComplete(req.params.lessonId as string, req.params.courseId as string, userId);
       res.json({ success: true });
-    } catch (error) { console.error("Error marking lesson complete:", error); res.status(500).json({ error: "Failed to mark lesson complete" }); }
+    } catch (error) { logger.error({ err: error }, "Error marking lesson complete"); res.status(500).json({ error: "Failed to mark lesson complete" }); }
   });
 
   // Course publish check
   app.post("/api/publish/check-course", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const instructorId = (req.user as any)?.id || req.body.instructorId;
+      const instructorId = req.user!.id || req.body.instructorId;
       const user = instructorId ? await storage.getUser(instructorId) : null;
       const userIsAdmin = user?.isAdmin === true;
       if (!instructorId) return res.json({ isFirst: true, uploadFee: 0, monthlyFee: MONTHLY_SUBSCRIPTION, commission: COMMISSION_RATE * 100, isAdmin: false });
       const contentCount = await storage.getUserContentCount(instructorId);
       const isFirst = contentCount === 0;
       res.json({ isFirst, uploadFee: userIsAdmin ? 0 : (isFirst ? 0 : UPLOAD_FEE), monthlyFee: userIsAdmin ? 0 : MONTHLY_SUBSCRIPTION, commission: COMMISSION_RATE * 100, isAdmin: userIsAdmin });
-    } catch (error) { console.error("Error checking course publish requirements:", error); res.status(500).json({ error: "Failed to check requirements" }); }
+    } catch (error) { logger.error({ err: error }, "Error checking course publish requirements"); res.status(500).json({ error: "Failed to check requirements" }); }
   });
 }

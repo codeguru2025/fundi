@@ -6,6 +6,7 @@ import { coursePendingPayments, pendingPayments } from "@shared/schema";
 import { desc } from "drizzle-orm";
 import { stripBooksContent, stripSensitiveUserFields, rateLimit, COMMISSION_RATE } from "./types";
 import { generateCertificatePDF } from "../certificate-generator";
+import { logger } from "../index";
 
 export function registerAdminRoutes(app: Express, _httpServer: Server): void {
   // Unified admin overview
@@ -60,8 +61,8 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         pagination: { page, pageSize },
       });
     } catch (error: any) {
-      console.error("[Admin Overview] FATAL error:", error?.message, error?.stack);
-      res.status(500).json({ error: "Failed to fetch admin overview", details: error?.message });
+      logger.error({ err: error }, "Admin overview failed");
+      res.status(500).json({ error: "Failed to fetch admin overview" });
     }
   });
 
@@ -97,10 +98,10 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         });
       }
 
-      console.log(`Admin manually granted course access: course=${courseId}, buyer=${buyerToken}`);
+      logger.info({ courseId, buyerToken }, "Admin manually granted course access");
       res.json({ success: true, message: "Course access granted successfully" });
     } catch (error: any) {
-      console.error("Error granting course access:", error?.message);
+      logger.error({ err: error }, "Error granting course access");
       res.status(500).json({ error: "Failed to grant course access" });
     }
   });
@@ -138,7 +139,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
 
       res.json({ payments: results });
     } catch (error: any) {
-      console.error("Pending payments lookup error:", error?.message);
+      logger.error({ err: error }, "Pending payments lookup error");
       res.status(500).json({ error: "Failed to lookup pending payments" });
     }
   });
@@ -174,11 +175,11 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
           .find((p: any) => p.buyerToken === buyerToken && p.status === "pending")?.id || "",
         "completed"
       );
-      console.log(`Fix-purchase: granted course=${courseId} to buyer=${buyerToken}`);
+      logger.info({ courseId, buyerToken }, "Fix-purchase: granted course access");
       res.json({ success: true, message: "Course access granted" });
     } catch (error: any) {
-      console.error("Fix-purchase error:", error?.message);
-      res.status(500).json({ error: error?.message });
+      logger.error({ err: error }, "Fix-purchase error");
+      res.status(500).json({ error: "Failed to fix purchase" });
     }
   });
 
@@ -195,7 +196,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         totalAuthorEarnings: salesAgg.totalSellerEarnings, recentSales: recentResult.data,
       });
     } catch (error) {
-      console.error("Error fetching sales report:", error);
+      logger.error({ err: error }, "Error fetching sales report");
       res.status(500).json({ error: "Failed to fetch sales report" });
     }
   });
@@ -217,7 +218,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         total: result.total, page, pageSize,
       });
     } catch (error) {
-      console.error("Error fetching settlements report:", error);
+      logger.error({ err: error }, "Error fetching settlements report");
       res.status(500).json({ error: "Failed to fetch settlements report" });
     }
   });
@@ -236,7 +237,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         books: stripBooksContent(result.data), total: result.total, page, pageSize,
       });
     } catch (error) {
-      console.error("Error fetching books report:", error);
+      logger.error({ err: error }, "Error fetching books report");
       res.status(500).json({ error: "Failed to fetch books report" });
     }
   });
@@ -251,7 +252,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       }));
       res.json(safeUsers);
     } catch (error) {
-      console.error("Error fetching users:", error);
+      logger.error({ err: error }, "Error fetching users");
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
@@ -259,7 +260,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
   app.post("/api/admin/users/:id/toggle-admin", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const targetUserId = req.params.id as string;
-      const currentUserId = (req.user as any)?.id;
+      const currentUserId = req.user?.id;
       if (targetUserId === currentUserId) {
         return res.status(400).json({ error: "You cannot remove your own admin privileges" });
       }
@@ -268,7 +269,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const updated = await storage.updateUser(targetUserId, { isAdmin: !targetUser.isAdmin });
       res.json({ id: updated?.id, email: updated?.email, isAdmin: updated?.isAdmin });
     } catch (error) {
-      console.error("Error toggling admin status:", error);
+      logger.error({ err: error }, "Error toggling admin status");
       res.status(500).json({ error: "Failed to update user" });
     }
   });
@@ -276,49 +277,49 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
   // Admin: course approval
   app.get("/api/admin/courses/pending", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try { res.json(await storage.getPendingCourses()); }
-    catch (error) { console.error("Error fetching pending courses:", error); res.status(500).json({ error: "Failed to fetch pending courses" }); }
+    catch (error) { logger.error({ err: error }, "Error fetching pending courses"); res.status(500).json({ error: "Failed to fetch pending courses" }); }
   });
 
   app.post("/api/admin/courses/:id/approve", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const { comment } = req.body || {};
-      const course = await storage.updateCourse(req.params.id as string, { isApproved: true, adminComment: comment || null } as any);
+      const course = await storage.updateCourse(req.params.id as string, { isApproved: true, adminComment: comment || null });
       if (!course) return res.status(404).json({ error: "Course not found" });
       res.json(course);
-    } catch (error) { console.error("Error approving course:", error); res.status(500).json({ error: "Failed to approve course" }); }
+    } catch (error) { logger.error({ err: error }, "Error approving course"); res.status(500).json({ error: "Failed to approve course" }); }
   });
 
   app.post("/api/admin/courses/:id/reject", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const { comment } = req.body || {};
-      const course = await storage.updateCourse(req.params.id as string, { isApproved: false, adminComment: comment || "Does not meet platform standards. Please review and resubmit." } as any);
+      const course = await storage.updateCourse(req.params.id as string, { isApproved: false, adminComment: comment || "Does not meet platform standards. Please review and resubmit." });
       if (!course) return res.status(404).json({ error: "Course not found" });
       res.json(course);
-    } catch (error) { console.error("Error rejecting course:", error); res.status(500).json({ error: "Failed to reject course" }); }
+    } catch (error) { logger.error({ err: error }, "Error rejecting course"); res.status(500).json({ error: "Failed to reject course" }); }
   });
 
   // Admin: book moderation
   app.get("/api/admin/books/pending", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try { res.json(await storage.getPendingBooks()); }
-    catch (error) { console.error("Error fetching pending books:", error); res.status(500).json({ error: "Failed to fetch pending books" }); }
+    catch (error) { logger.error({ err: error }, "Error fetching pending books"); res.status(500).json({ error: "Failed to fetch pending books" }); }
   });
 
   app.post("/api/admin/books/:id/approve", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const { comment } = req.body || {};
-      const book = await storage.updateBook(req.params.id as string, { isApproved: true, adminComment: comment || null } as any);
+      const book = await storage.updateBook(req.params.id as string, { isApproved: true, adminComment: comment || null });
       if (!book) return res.status(404).json({ error: "Book not found" });
       res.json(book);
-    } catch (error) { console.error("Error approving book:", error); res.status(500).json({ error: "Failed to approve book" }); }
+    } catch (error) { logger.error({ err: error }, "Error approving book"); res.status(500).json({ error: "Failed to approve book" }); }
   });
 
   app.post("/api/admin/books/:id/reject", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const { comment } = req.body || {};
-      const book = await storage.updateBook(req.params.id as string, { isApproved: false, isActive: false, adminComment: comment || "Does not meet platform standards. Please review and resubmit." } as any);
+      const book = await storage.updateBook(req.params.id as string, { isApproved: false, isActive: false, adminComment: comment || "Does not meet platform standards. Please review and resubmit." });
       if (!book) return res.status(404).json({ error: "Book not found" });
       res.json(book);
-    } catch (error) { console.error("Error rejecting book:", error); res.status(500).json({ error: "Failed to reject book" }); }
+    } catch (error) { logger.error({ err: error }, "Error rejecting book"); res.status(500).json({ error: "Failed to reject book" }); }
   });
 
   app.post("/api/admin/books/:id/toggle-visibility", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -326,9 +327,9 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const book = await storage.getBook(req.params.id as string);
       if (!book) return res.status(404).json({ error: "Book not found" });
       const { comment } = req.body || {};
-      const updated = await storage.updateBook(req.params.id as string, { isActive: !book.isActive, adminComment: comment || book.adminComment } as any);
+      const updated = await storage.updateBook(req.params.id as string, { isActive: !book.isActive, adminComment: comment || book.adminComment });
       res.json(updated);
-    } catch (error) { console.error("Error toggling book visibility:", error); res.status(500).json({ error: "Failed to update book" }); }
+    } catch (error) { logger.error({ err: error }, "Error toggling book visibility"); res.status(500).json({ error: "Failed to update book" }); }
   });
 
   app.post("/api/admin/courses/:id/toggle-visibility", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -336,14 +337,14 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const course = await storage.getCourse(req.params.id as string);
       if (!course) return res.status(404).json({ error: "Course not found" });
       const { comment } = req.body || {};
-      const updated = await storage.updateCourse(req.params.id as string, { isActive: !course.isActive, adminComment: comment || course.adminComment } as any);
+      const updated = await storage.updateCourse(req.params.id as string, { isActive: !course.isActive, adminComment: comment || course.adminComment });
       res.json(updated);
-    } catch (error) { console.error("Error toggling course visibility:", error); res.status(500).json({ error: "Failed to update course" }); }
+    } catch (error) { logger.error({ err: error }, "Error toggling course visibility"); res.status(500).json({ error: "Failed to update course" }); }
   });
 
   app.get("/api/admin/courses/all", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try { res.json(await storage.getAllCourses()); }
-    catch (error) { console.error("Error fetching all courses:", error); res.status(500).json({ error: "Failed to fetch courses" }); }
+    catch (error) { logger.error({ err: error }, "Error fetching all courses"); res.status(500).json({ error: "Failed to fetch courses" }); }
   });
 
   app.patch("/api/admin/courses/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -366,7 +367,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const course = await storage.updateCourse(req.params.id as string, updateData);
       if (!course) return res.status(404).json({ error: "Course not found" });
       res.json(course);
-    } catch (error) { console.error("Error updating course (admin):", error); res.status(500).json({ error: "Failed to update course" }); }
+    } catch (error) { logger.error({ err: error }, "Error updating course (admin)"); res.status(500).json({ error: "Failed to update course" }); }
   });
 
   app.delete("/api/admin/courses/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -375,7 +376,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       if (!course) return res.status(404).json({ error: "Course not found" });
       await storage.deleteCourse(req.params.id as string);
       res.status(204).send();
-    } catch (error) { console.error("Error deleting course (admin):", error); res.status(500).json({ error: "Failed to delete course" }); }
+    } catch (error) { logger.error({ err: error }, "Error deleting course (admin)"); res.status(500).json({ error: "Failed to delete course" }); }
   });
 
   app.get("/api/admin/courses/:id/full", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -394,7 +395,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         return { ...mod, lessons, quizzes: quizzesWithQuestions };
       }));
       res.json({ ...course, modules: modulesWithDetails });
-    } catch (error) { console.error("Error fetching full course (admin):", error); res.status(500).json({ error: "Failed to fetch course details" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching full course (admin)"); res.status(500).json({ error: "Failed to fetch course details" }); }
   });
 
   app.put("/api/admin/courses/:id/full", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -471,7 +472,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       }
 
       res.json(await storage.getCourse(courseId));
-    } catch (error) { console.error("Error updating full course (admin):", error); res.status(500).json({ error: "Failed to update course" }); }
+    } catch (error) { logger.error({ err: error }, "Error updating full course (admin)"); res.status(500).json({ error: "Failed to update course" }); }
   });
 
   // Admin: module CRUD
@@ -484,19 +485,19 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const mod = await storage.updateModule(req.params.id as string, updateData);
       if (!mod) return res.status(404).json({ error: "Module not found" });
       res.json(mod);
-    } catch (error) { console.error("Error updating module (admin):", error); res.status(500).json({ error: "Failed to update module" }); }
+    } catch (error) { logger.error({ err: error }, "Error updating module (admin)"); res.status(500).json({ error: "Failed to update module" }); }
   });
 
   app.delete("/api/admin/modules/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try { await storage.deleteModule(req.params.id as string); res.status(204).send(); }
-    catch (error) { console.error("Error deleting module (admin):", error); res.status(500).json({ error: "Failed to delete module" }); }
+    catch (error) { logger.error({ err: error }, "Error deleting module (admin)"); res.status(500).json({ error: "Failed to delete module" }); }
   });
 
   app.post("/api/admin/modules", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try {
       const { courseId, title, position } = req.body;
       res.json(await storage.createModule({ courseId, title, position: position ?? 0 }));
-    } catch (error) { console.error("Error creating module (admin):", error); res.status(500).json({ error: "Failed to create module" }); }
+    } catch (error) { logger.error({ err: error }, "Error creating module (admin)"); res.status(500).json({ error: "Failed to create module" }); }
   });
 
   // Admin: lesson CRUD
@@ -515,12 +516,12 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const lesson = await storage.updateLesson(req.params.id as string, updateData);
       if (!lesson) return res.status(404).json({ error: "Lesson not found" });
       res.json(lesson);
-    } catch (error) { console.error("Error updating lesson (admin):", error); res.status(500).json({ error: "Failed to update lesson" }); }
+    } catch (error) { logger.error({ err: error }, "Error updating lesson (admin)"); res.status(500).json({ error: "Failed to update lesson" }); }
   });
 
   app.delete("/api/admin/lessons/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try { await storage.deleteLesson(req.params.id as string); res.status(204).send(); }
-    catch (error) { console.error("Error deleting lesson (admin):", error); res.status(500).json({ error: "Failed to delete lesson" }); }
+    catch (error) { logger.error({ err: error }, "Error deleting lesson (admin)"); res.status(500).json({ error: "Failed to delete lesson" }); }
   });
 
   app.post("/api/admin/lessons", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -532,7 +533,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         textContent: textContent || null, duration: duration || null,
         position: position ?? 0, isFreePreview: isFreePreview || false,
       }));
-    } catch (error) { console.error("Error creating lesson (admin):", error); res.status(500).json({ error: "Failed to create lesson" }); }
+    } catch (error) { logger.error({ err: error }, "Error creating lesson (admin)"); res.status(500).json({ error: "Failed to create lesson" }); }
   });
 
   // Admin: quiz CRUD
@@ -546,12 +547,12 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const quiz = await storage.updateQuiz(req.params.id as string, updateData);
       if (!quiz) return res.status(404).json({ error: "Quiz not found" });
       res.json(quiz);
-    } catch (error) { console.error("Error updating quiz (admin):", error); res.status(500).json({ error: "Failed to update quiz" }); }
+    } catch (error) { logger.error({ err: error }, "Error updating quiz (admin)"); res.status(500).json({ error: "Failed to update quiz" }); }
   });
 
   app.delete("/api/admin/quizzes/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try { await storage.deleteQuiz(req.params.id as string); res.status(204).send(); }
-    catch (error) { console.error("Error deleting quiz (admin):", error); res.status(500).json({ error: "Failed to delete quiz" }); }
+    catch (error) { logger.error({ err: error }, "Error deleting quiz (admin)"); res.status(500).json({ error: "Failed to delete quiz" }); }
   });
 
   app.post("/api/admin/quizzes", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -561,7 +562,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         moduleId, courseId, title, quizType: quizType || "revision",
         passingScore: passingScore ?? 70, position: position ?? 0,
       }));
-    } catch (error) { console.error("Error creating quiz (admin):", error); res.status(500).json({ error: "Failed to create quiz" }); }
+    } catch (error) { logger.error({ err: error }, "Error creating quiz (admin)"); res.status(500).json({ error: "Failed to create quiz" }); }
   });
 
   // Admin: question CRUD
@@ -577,12 +578,12 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const question = await storage.updateQuizQuestion(req.params.id as string, updateData);
       if (!question) return res.status(404).json({ error: "Question not found" });
       res.json(question);
-    } catch (error) { console.error("Error updating question (admin):", error); res.status(500).json({ error: "Failed to update question" }); }
+    } catch (error) { logger.error({ err: error }, "Error updating question (admin)"); res.status(500).json({ error: "Failed to update question" }); }
   });
 
   app.delete("/api/admin/questions/:id", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
     try { await storage.deleteQuizQuestion(req.params.id as string); res.status(204).send(); }
-    catch (error) { console.error("Error deleting question (admin):", error); res.status(500).json({ error: "Failed to delete question" }); }
+    catch (error) { logger.error({ err: error }, "Error deleting question (admin)"); res.status(500).json({ error: "Failed to delete question" }); }
   });
 
   app.post("/api/admin/questions", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -592,7 +593,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         quizId, prompt, options, correctIndex: correctIndex ?? 0,
         explanation: explanation || null, position: position ?? 0,
       }));
-    } catch (error) { console.error("Error creating question (admin):", error); res.status(500).json({ error: "Failed to create question" }); }
+    } catch (error) { logger.error({ err: error }, "Error creating question (admin)"); res.status(500).json({ error: "Failed to create question" }); }
   });
 
   // Admin: analytics
@@ -611,13 +612,13 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         totalCommission: salesAgg.totalCommission, bookRevenue: revenueBreakdown.bookRevenue,
         courseRevenue: revenueBreakdown.courseRevenue, topContent,
       });
-    } catch (error) { console.error("Error fetching admin analytics:", error); res.status(500).json({ error: "Failed to fetch analytics" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching admin analytics"); res.status(500).json({ error: "Failed to fetch analytics" }); }
   });
 
   // Admin: certificates
   app.get("/api/admin/certificates", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try { res.json(await storage.getAllCertificates()); }
-    catch (error) { console.error("Error fetching all certificates:", error); res.status(500).json({ error: "Failed to fetch certificates" }); }
+    catch (error) { logger.error({ err: error }, "Error fetching all certificates"); res.status(500).json({ error: "Failed to fetch certificates" }); }
   });
 
   app.get("/api/admin/certificates/:id/download", isAuthenticated, isAdmin, async (req: Request, res: Response) => {
@@ -632,18 +633,18 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         instructorName: cert.instructorName,
         completionDate: new Date(cert.issuedAt || Date.now()).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
         verificationToken: cert.verificationToken, certificateId: cert.id,
-        verifyUrl, courseLevel: (course as any)?.level || undefined,
+        verifyUrl, courseLevel: course?.level || undefined,
       });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="certificate-${cert.userName.replace(/[^a-zA-Z0-9]/g, '_')}-${cert.verificationToken}.pdf"`);
       res.send(pdfBuffer);
-    } catch (error) { console.error("Error downloading admin certificate PDF:", error); res.status(500).json({ error: "Failed to generate certificate PDF" }); }
+    } catch (error) { logger.error({ err: error }, "Error downloading admin certificate PDF"); res.status(500).json({ error: "Failed to generate certificate PDF" }); }
   });
 
   // Admin: book analytics
   app.get("/api/admin/book-analytics", isAuthenticated, isAdmin, async (_req: Request, res: Response) => {
     try { res.json(await storage.getBookAnalytics()); }
-    catch (error) { console.error("Error fetching book analytics:", error); res.status(500).json({ error: "Failed to fetch book analytics" }); }
+    catch (error) { logger.error({ err: error }, "Error fetching book analytics"); res.status(500).json({ error: "Failed to fetch book analytics" }); }
   });
 
   // Admin: assign author
@@ -653,7 +654,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       const book = await storage.updateBook(req.params.id as string, { authorId });
       if (!book) return res.status(404).json({ error: "Book not found" });
       res.json(book);
-    } catch (error) { console.error("Error assigning author:", error); res.status(500).json({ error: "Failed to assign author" }); }
+    } catch (error) { logger.error({ err: error }, "Error assigning author"); res.status(500).json({ error: "Failed to assign author" }); }
   });
 
   // Admin: migrate legacy books
@@ -669,7 +670,7 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
       for (const book of legacyBooks) {
         try {
           const objectPath = await uploadFileDataToStorage(book.fileData!, book.fileType!);
-          await storage.updateBook(book.id, { originalFileUrl: objectPath, originalFormat: book.fileType, conversionStatus: "pending" } as any);
+          await storage.updateBook(book.id, { originalFileUrl: objectPath, originalFormat: book.fileType, conversionStatus: "pending" });
           triggerConversion(book.id);
           migrated++;
           results.push({ id: book.id, title: book.title, status: "migrated" });
@@ -678,6 +679,6 @@ export function registerAdminRoutes(app: Express, _httpServer: Server): void {
         }
       }
       res.json({ message: `Migrated ${migrated} of ${legacyBooks.length} legacy books`, migrated, results });
-    } catch (error) { console.error("Error migrating legacy books:", error); res.status(500).json({ error: "Failed to migrate legacy books" }); }
+    } catch (error) { logger.error({ err: error }, "Error migrating legacy books"); res.status(500).json({ error: "Failed to migrate legacy books" }); }
   });
 }

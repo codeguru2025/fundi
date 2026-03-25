@@ -41,7 +41,7 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 export function rateLimit(windowMs: number, maxRequests: number) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const key = req.ip || (req as any).connection?.remoteAddress || "unknown";
+    const key = req.ip || req.socket?.remoteAddress || "unknown";
     const now = Date.now();
     const entry = rateLimitMap.get(key);
     if (!entry || now > entry.resetAt) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { csrfHeaders } from "@/lib/csrf";
 import {
   Dialog,
   DialogContent,
@@ -71,7 +72,7 @@ export function PaymentDialog({ open, onClose, book, onPaymentSuccess, userId }:
       const buyerToken = userId || getBuyerToken();
       const response = await fetch("/api/payments/initiate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({
           bookId: book.id,
@@ -117,7 +118,7 @@ export function PaymentDialog({ open, onClose, book, onPaymentSuccess, userId }:
       const buyerToken = userId || getBuyerToken();
       const response = await fetch("/api/payments/check-status", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({ pollUrl, bookId: book.id, buyerToken, email }),
       });

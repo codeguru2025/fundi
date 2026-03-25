@@ -15,6 +15,15 @@ import {
 import { db } from "./db";
 import { eq, desc, and, lte, gte, sql, inArray } from "drizzle-orm";
 
+/** Extract rows from a db.execute() result (handles both array and {rows} shapes). */
+function rawRows(result: unknown): Record<string, unknown>[] {
+  if (Array.isArray(result)) return result;
+  if (result && typeof result === "object" && "rows" in result && Array.isArray((result as { rows: unknown[] }).rows)) {
+    return (result as { rows: Record<string, unknown>[] }).rows;
+  }
+  return [];
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -1285,8 +1294,8 @@ export class DatabaseStorage implements IStorage {
       ORDER BY s.created_at DESC
       LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
     `);
-    const rows = (result as any).rows || result;
-    const data = (rows as any[]).map((r: any) => ({
+    const rows = rawRows(result);
+    const data = rows.map((r: Record<string, unknown>) => ({
       id: r.id,
       bookId: r.book_id,
       buyerId: r.buyer_id,
@@ -1362,23 +1371,23 @@ export class DatabaseStorage implements IStorage {
         GROUP BY content_id
       `),
     ]);
-    const rows = (bookRows as any).rows || bookRows;
-    const sum = ((summaryResult as any).rows || summaryResult)?.[0] || {};
-    const viewRows = (viewsResult as any).rows || viewsResult;
+    const rows = rawRows(bookRows);
+    const sum = rawRows(summaryResult)[0] || {};
+    const viewRows = rawRows(viewsResult);
     const viewsMap: Record<string, number> = {};
     for (const v of viewRows) {
-      viewsMap[v.content_id] = Number(v.views || 0);
+      viewsMap[v.content_id as string] = Number(v.views || 0);
     }
     return {
-      books: rows.map((r: any) => {
-        const views = viewsMap[r.id] || 0;
+      books: rows.map((r: Record<string, unknown>) => {
+        const views = viewsMap[r.id as string] || 0;
         return {
           id: r.id, title: r.title, author: r.author, price: r.price,
           coverUrl: r.cover, isActive: r.is_active, subscriptionActive: r.subscription_active,
           isApproved: r.is_approved, createdAt: r.created_at,
           totalSales: r.total_sales, totalRevenue: r.total_revenue,
           totalCommission: r.total_commission, sellerEarnings: r.seller_earnings,
-          views, conversionRate: views > 0 ? ((r.total_sales / views) * 100).toFixed(1) : "0.0",
+          views, conversionRate: views > 0 ? ((Number(r.total_sales) / views) * 100).toFixed(1) : "0.0",
         };
       }),
       summary: {
@@ -1410,7 +1419,7 @@ export class DatabaseStorage implements IStorage {
       LEFT JOIN books b ON b.id = s.book_id
       LEFT JOIN courses c ON c.id = s.book_id
     `);
-    const row = (result as any).rows?.[0] || (result as any)[0] || {};
+    const row = rawRows(result)[0] || {};
     return {
       bookRevenue: Number(row.book_revenue || 0),
       courseRevenue: Number(row.course_revenue || 0),

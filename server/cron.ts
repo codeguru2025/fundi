@@ -9,7 +9,9 @@
  */
 
 import { storage } from "./storage";
-import { logger } from "./index";
+import pino from "pino";
+
+const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
 export async function runSubscriptionCheck(): Promise<void> {
   logger.info("Running subscription expiry check...");

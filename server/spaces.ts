@@ -14,6 +14,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  type ObjectCannedACL,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nanoid } from "nanoid";
@@ -56,7 +57,7 @@ export async function getUploadSignedUrl(
     Bucket: getBucket(),
     Key: key,
     ContentType: contentType,
-    ACL: "public-read" as any,
+    ACL: "public-read" as ObjectCannedACL,
   });
   return getSignedUrl(client, command, { expiresIn });
 }

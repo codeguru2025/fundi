@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { csrfHeaders } from "@/lib/csrf";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,7 +171,7 @@ function VoiceoverRecorder({ voiceoverUrl, onRecorded, onRemove, testIdPrefix }:
         try {
           const formData = new FormData();
           formData.append("file", blob, `voiceover-${Date.now()}.webm`);
-          const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+          const res = await fetch("/api/upload", { method: "POST", headers: csrfHeaders(), body: formData, credentials: "include" });
           const data = await res.json();
           if (data.url) onRecorded(data.url);
         } catch {
@@ -285,7 +286,7 @@ function VoiceoverRecorder({ voiceoverUrl, onRecorded, onRemove, testIdPrefix }:
                 const formData = new FormData();
                 formData.append("file", file);
                 try {
-                  const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+                  const res = await fetch("/api/upload", { method: "POST", headers: csrfHeaders(), body: formData, credentials: "include" });
                   const data = await res.json();
                   if (data.url) onRecorded(data.url);
                 } catch {}
@@ -310,7 +311,7 @@ function VoiceoverRecorder({ voiceoverUrl, onRecorded, onRemove, testIdPrefix }:
                 const formData = new FormData();
                 formData.append("file", file);
                 try {
-                  const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+                  const res = await fetch("/api/upload", { method: "POST", headers: csrfHeaders(), body: formData, credentials: "include" });
                   const data = await res.json();
                   if (data.url) onRecorded(data.url);
                 } catch {}
@@ -1101,8 +1102,12 @@ export default function CreateCourse() {
                                                         try {
                                                           const signedRes = await fetch("/api/upload/request-signed-url", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: csrfHeaders({ "Content-Type": "application/json" }),
                                                             credentials: "include",
+                                                            body: JSON.stringify({
+                                                              filename: file.name,
+                                                              contentType: file.type || "application/octet-stream",
+                                                            }),
                                                           });
                                                           if (!signedRes.ok) throw new Error("Failed to get upload URL");
                                                           const { uploadURL, objectPath } = await signedRes.json();
@@ -1849,7 +1854,7 @@ export default function CreateCourse() {
                             const formData = new FormData();
                             formData.append("file", file);
                             try {
-                              const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+                              const res = await fetch("/api/upload", { method: "POST", headers: csrfHeaders(), body: formData, credentials: "include" });
                               const data = await res.json();
                               if (data.url) setCoverUrl(data.url);
                             } catch {

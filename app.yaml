@@ -13,8 +13,6 @@ services:
   envs:
   - key: NODE_ENV
     value: production
-  - key: NODE_TLS_REJECT_UNAUTHORIZED
-    value: "0"
   - key: PORT
     value: "5000"
   - key: APP_URL
@@ -51,3 +49,21 @@ services:
     type: SECRET
   - key: LOG_LEVEL
     value: info
+jobs:
+- name: subscription-check
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: codeguru2025/fundi
+  build_command: npm run build
+  run_command: node -e "import('./dist/cron.cjs').then(m => m.runSubscriptionCheck())"
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  kind: PRE_DEPLOY
+  envs:
+  - key: DATABASE_URL
+    value: ${fundi-web.DATABASE_URL}
+    type: SECRET
+  - key: NODE_ENV
+    value: production

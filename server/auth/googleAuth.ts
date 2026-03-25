@@ -1,14 +1,16 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import session from "express-session";
-import type { Express, RequestHandler } from "express";
-import connectPg from "connect-pg-simple";
+import connectPgSimple from "connect-pg-simple";
+import type { Express, Request, Response, NextFunction, RequestHandler } from "express";
+import type { User } from "@shared/schema";
 import { storage } from "../storage";
 import { pool } from "../db";
+import { logger } from "../index";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
+  const pgStore = connectPgSimple(session);
   const sessionStore = new pgStore({
     pool,
     createTableIfMissing: false,
@@ -45,7 +47,7 @@ export async function setupGoogleAuth(app: Express) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientID || !clientSecret) {
-    console.error("Google OAuth credentials not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
+    logger.error("Google OAuth credentials not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
     return;
   }
 
@@ -55,7 +57,7 @@ export async function setupGoogleAuth(app: Express) {
     ? `${process.env.APP_URL}/api/auth/google/callback`
     : "/api/auth/google/callback";
 
-  console.log("Google OAuth callback URL:", callbackURL);
+  logger.info({ callbackURL }, "Google OAuth callback URL configured");
 
   passport.use(
     new GoogleStrategy(
@@ -91,7 +93,7 @@ export async function setupGoogleAuth(app: Express) {
             }).returning();
             user = newUser;
           } else {
-            const updateData: any = {
+            const updateData: Partial<User> = {
               email: email || user.email,
               firstName: firstName || user.firstName,
               lastName: lastName || user.lastName,
@@ -104,7 +106,7 @@ export async function setupGoogleAuth(app: Express) {
           }
 
           // Only store the user ID in the session — user data is fetched fresh on each request
-          return done(null, { id: user?.id ?? profile.id });
+          return done(null, user as Express.User);
         } catch (error) {
           return done(error as Error);
         }
@@ -125,7 +127,7 @@ export async function setupGoogleAuth(app: Express) {
       const user = await storage.getUser(id);
       if (!user) return done(null, false);
       // Never expose paynow secret key to req.user
-      const { paynowIntegrationKey, ...safeUser } = user as any;
+      const { paynowIntegrationKey: _key, ...safeUser } = user;
       done(null, safeUser);
     } catch (error) {
       done(error);
@@ -145,7 +147,7 @@ export async function setupGoogleAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        console.error("Logout error:", err);
+        logger.error({ err }, "Logout error");
       }
       res.json({ success: true });
     });
@@ -157,7 +159,7 @@ export async function setupGoogleAuth(app: Express) {
     }
     req.logout((err) => {
       if (err) {
-        console.error("Logout error:", err);
+        logger.error({ err }, "Logout error");
       }
       res.redirect("/");
     });
@@ -180,7 +182,7 @@ export const isAuthenticated: RequestHandler = (req, res, next) => {
 };
 
 export const isAdmin: RequestHandler = (req, res, next) => {
-  if (req.isAuthenticated() && (req.user as any)?.isAdmin) {
+  if (req.isAuthenticated() && req.user?.isAdmin) {
     return next();
   }
   res.status(403).json({ message: "Forbidden: Admin access required" });

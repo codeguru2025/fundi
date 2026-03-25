@@ -6,6 +6,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { generateObjectKey, getUploadSignedUrl, getPublicUrl } from "./spaces";
+import { logger } from "./index";
 
 // Import all modular route handlers
 import { registerAdminRoutes } from "./routes/admin";
@@ -60,7 +61,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       res.json({ uploadURL, objectPath });
     } catch (err) {
-      console.error("Error generating signed upload URL:", err);
+      logger.error({ err }, "Error generating signed upload URL");
       res.status(500).json({ error: "Failed to generate upload URL" });
     }
   });
@@ -86,7 +87,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       try {
         const uploadResponse = await fetch(uploadURL, {
           method: "PUT",
-          body: fileStream as any,
+          body: fileStream as unknown as BodyInit,
           headers: {
             "Content-Type": req.file.mimetype || "application/octet-stream",
             "Content-Length": String(fileSize),
@@ -109,7 +110,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       cleanup();
       res.json({ url: publicUrl, filename: req.file.originalname, size: req.file.size });
     } catch (err) {
-      console.error("Spaces upload failed:", err);
+      logger.error({ err }, "Spaces upload failed");
       cleanup();
       res.status(500).json({ error: "File upload failed. Please try again." });
     }

@@ -5,14 +5,15 @@ import { Paynow } from "paynow";
 import { storage } from "../storage";
 import { isAuthenticated } from "../auth/googleAuth";
 import { generateCertificatePDF } from "../certificate-generator";
+import { logger } from "../index";
 import { DEFAULT_CERTIFICATE_FEE } from "./types";
 
 export function registerCertificateRoutes(app: Express, _httpServer: Server): void {
   // Generate certificate
   app.post("/api/courses/:courseId/certificate", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const userId = req.user!.id;
+      const userIsAdmin = req.user!.isAdmin === true;
       const courseId = String(req.params.courseId);
       const user = await storage.getUser(userId);
       const course = await storage.getCourse(courseId);
@@ -50,20 +51,20 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
       }
       const { verificationToken: _token, ...redactedCert } = certificate;
       res.json(redactedCert);
-    } catch (error) { console.error("Error generating certificate:", error); res.status(500).json({ error: "Failed to generate certificate" }); }
+    } catch (error) { logger.error({ err: error }, "Error generating certificate"); res.status(500).json({ error: "Failed to generate certificate" }); }
   });
 
   // Get certificate
   app.get("/api/courses/:courseId/certificate", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const userId = req.user!.id;
+      const userIsAdmin = req.user!.isAdmin === true;
       const cert = await storage.getCertificate(String(req.params.courseId), userId);
       if (!cert) return res.json(null);
       if (userIsAdmin || cert.paid) return res.json(cert);
       const { verificationToken, ...redacted } = cert;
       res.json(redacted);
-    } catch (error) { console.error("Error fetching certificate:", error); res.status(500).json({ error: "Failed to fetch certificate" }); }
+    } catch (error) { logger.error({ err: error }, "Error fetching certificate"); res.status(500).json({ error: "Failed to fetch certificate" }); }
   });
 
   // Public: verify certificate
@@ -74,15 +75,15 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
       const cert = await storage.getCertificateByToken(token);
       if (!cert || !cert.paid) return res.status(404).json({ error: "Certificate not found", valid: false });
       const course = await storage.getCourse(cert.courseId);
-      res.json({ valid: true, certificate: { ...cert, courseLevel: (course as any)?.level || null } });
-    } catch (error) { console.error("Error verifying certificate:", error); res.status(500).json({ error: "Failed to verify certificate" }); }
+      res.json({ valid: true, certificate: { ...cert, courseLevel: course?.level || null } });
+    } catch (error) { logger.error({ err: error }, "Error verifying certificate"); res.status(500).json({ error: "Failed to verify certificate" }); }
   });
 
   // Download certificate PDF
   app.get("/api/courses/:courseId/certificate/download", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
-      const userIsAdmin = (req.user as any)?.isAdmin === true;
+      const userId = req.user!.id;
+      const userIsAdmin = req.user!.isAdmin === true;
       const courseId = String(req.params.courseId);
       const cert = await storage.getCertificate(courseId, userId);
       if (!cert) return res.status(404).json({ error: "Certificate not found" });
@@ -94,18 +95,18 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
         studentName: cert.userName, courseTitle: cert.courseTitle, instructorName: cert.instructorName,
         completionDate: new Date(cert.createdAt || Date.now()).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
         verificationToken: cert.verificationToken, certificateId: cert.id, verifyUrl,
-        courseLevel: (course as any)?.level || undefined,
+        courseLevel: course?.level || undefined,
       });
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="certificate-${cert.verificationToken}.pdf"`);
       res.send(pdfBuffer);
-    } catch (error) { console.error("Error downloading certificate PDF:", error); res.status(500).json({ error: "Failed to generate certificate PDF" }); }
+    } catch (error) { logger.error({ err: error }, "Error downloading certificate PDF"); res.status(500).json({ error: "Failed to generate certificate PDF" }); }
   });
 
   // Certificate payment initiation
   app.post("/api/certificates/payments/initiate", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       const { courseId, email, phone, paymentMethod } = req.body;
       if (!courseId) return res.status(400).json({ error: "Course ID is required" });
       const course = await storage.getCourse(courseId);
@@ -121,7 +122,7 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
       const baseUrl = `${protocol}://${host}`;
       paynow.resultUrl = `${baseUrl}/api/certificates/payments/callback`;
       paynow.returnUrl = `${baseUrl}/course/${courseId}/learn?tab=certificate&payment=success`;
-      const payerEmail = email || (req.user as any)?.email || 'student@fundi.app';
+      const payerEmail = email || req.user!.email || 'student@fundi.app';
       const certFee = course.certificateFee ?? DEFAULT_CERTIFICATE_FEE;
       const payment = paynow.createPayment(`Cert_${courseId}_${userId}_${Date.now()}`, payerEmail);
       payment.add(`Certificate: ${course.title}`, certFee);
@@ -133,13 +134,13 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
         await storage.createCertPendingPayment({ courseId, userId, email: payerEmail, pollUrl: response.pollUrl, amount: certFee, paymentMethod });
         res.json({ success: true, redirectUrl: response.redirectUrl, pollUrl: response.pollUrl, instructions: response.instructions, paymentMethod });
       } else { res.status(400).json({ success: false, error: response.error }); }
-    } catch (error) { console.error("Certificate payment initiation error:", error); res.status(500).json({ error: "Failed to initiate certificate payment" }); }
+    } catch (error) { logger.error({ err: error }, "Certificate payment initiation error"); res.status(500).json({ error: "Failed to initiate certificate payment" }); }
   });
 
   // Certificate payment check-status
   app.post("/api/certificates/payments/check-status", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       const { pollUrl, courseId } = req.body;
       const integrationId = process.env.PAYNOW_INTEGRATION_ID?.trim();
       const integrationKey = process.env.PAYNOW_INTEGRATION_KEY?.trim();
@@ -165,7 +166,7 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
         for (const pp of pendingPayments) await storage.markCertPendingPaymentCompleted(pp.id);
         res.json({ success: true, paid: true, certificate: await storage.getCertificate(courseId, userId) });
       } else { res.json({ success: true, paid: false, status: status.status }); }
-    } catch (error) { console.error("Certificate payment status check error:", error); res.status(500).json({ error: "Failed to check certificate payment status" }); }
+    } catch (error) { logger.error({ err: error }, "Certificate payment status check error"); res.status(500).json({ error: "Failed to check certificate payment status" }); }
   });
 
   // Certificate payment callback (webhook)
@@ -201,6 +202,6 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
         }
       }
       res.send("OK");
-    } catch (error) { console.error("Certificate payment callback error:", error); res.send("OK"); }
+    } catch (error) { logger.error({ err: error }, "Certificate payment callback error"); res.send("OK"); }
   });
 }

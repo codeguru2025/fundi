@@ -5,13 +5,14 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../auth/googleAuth";
 import { insertPageViewSchema } from "@shared/schema";
 import { rateLimit } from "./types";
+import { logger } from "../index";
 
 export function registerAnalyticsRoutes(app: Express, _httpServer: Server): void {
   // Track page views
   app.post("/api/analytics/track", rateLimit(60000, 30), async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id || null;
-      const sessionId = (req as any).sessionID || req.headers["x-session-id"] as string || null;
+      const userId = req.user?.id || null;
+      const sessionId = req.sessionID || req.headers["x-session-id"] as string || null;
       const userAgent = req.headers["user-agent"] || null;
       const { path, referrer, contentType, contentId } = req.body;
       const viewData = insertPageViewSchema.parse({
@@ -22,7 +23,7 @@ export function registerAnalyticsRoutes(app: Express, _httpServer: Server): void
       res.json({ ok: true });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: "Invalid tracking data" });
-      console.error("Error tracking page view:", error);
+      logger.error({ err: error }, "Error tracking page view");
       res.status(500).json({ error: "Failed to track" });
     }
   });
@@ -30,7 +31,7 @@ export function registerAnalyticsRoutes(app: Express, _httpServer: Server): void
   // Publisher Dashboard
   app.get("/api/dashboard", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any)?.id;
+      const userId = req.user!.id;
       const myBooks = await storage.getBooksByAuthor(userId);
       const myCourses = await storage.getCoursesByInstructor(userId);
       const bookIds = myBooks.map(b => b.id);
@@ -58,7 +59,7 @@ export function registerAnalyticsRoutes(app: Express, _httpServer: Server): void
         const combined: Record<string, number> = {};
         [...bv, ...cv].forEach(v => { combined[v.date] = (combined[v.date] || 0) + v.count; });
         viewsOverTime = Object.entries(combined).sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({ date, count }));
-      } catch (e: any) { console.error("[Dashboard] Error fetching analytics views:", e?.message); }
+      } catch (e: any) { logger.error("[Dashboard] Error fetching analytics views:", e?.message); }
       const sellerRecentSales = recentSales.filter(s => s.sellerId === userId);
       res.json({
         books: myBooks.map(b => {
@@ -95,8 +96,8 @@ export function registerAnalyticsRoutes(app: Express, _httpServer: Server): void
         })),
       });
     } catch (error: any) {
-      console.error("[Dashboard] FATAL error:", error?.message, error?.stack);
-      res.status(500).json({ error: "Failed to fetch dashboard data", details: error?.message });
+      logger.error({ err: error }, "Error fetching dashboard analytics");
+      res.status(500).json({ error: "Failed to fetch dashboard data" });
     }
   });
 }
