@@ -1,12 +1,11 @@
-import { execFile } from "child_process";
-import { promisify } from "util";
 import fs from "fs";
 import path from "path";
+import mammoth from "mammoth";
+import archiver from "archiver";
 import { storage } from "./storage";
 import { generateObjectKey, getUploadSignedUrl, getPublicUrl } from "./spaces";
 import { logger } from "./index";
 
-const execFileAsync = promisify(execFile);
 const CONVERSION_DIR = path.join(process.cwd(), "conversions");
 const activeConversions = new Set<string>();
 
@@ -15,7 +14,6 @@ if (!fs.existsSync(CONVERSION_DIR)) {
 }
 
 async function downloadFromObjectStorage(objectPath: string, destPath: string): Promise<void> {
-  // objectPath is a CDN URL — download the file directly
   const response = await fetch(objectPath);
   if (!response.ok) throw new Error(`Failed to download file: ${response.status}`);
   const buffer = Buffer.from(await response.arrayBuffer());
@@ -71,143 +69,190 @@ export async function uploadFileDataToStorage(base64Data: string, contentType: s
   return getPublicUrl(key);
 }
 
-function getInputExtension(format: string): string {
-  const formatMap: Record<string, string> = {
-    "application/pdf": ".pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
-    "text/html": ".html",
-    "text/plain": ".txt",
-    "application/epub+zip": ".epub",
-  };
-  return formatMap[format] || ".pdf";
+// ── EPUB builder (pure Node.js — no external binaries) ──────────────────────
+
+const EPUB_CSS = `
+body { font-family: Georgia, serif; line-height: 1.6; margin: 1em; }
+h1 { font-size: 1.6em; text-align: center; margin: 2em 0 1em; page-break-before: always; }
+h2 { font-size: 1.3em; margin: 1.5em 0 0.8em; page-break-before: always; }
+h3 { font-size: 1.1em; margin: 1.2em 0 0.6em; }
+p { margin: 0.5em 0; text-indent: 1.5em; }
+img { max-width: 100%; }
+table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+td, th { border: 1px solid #ccc; padding: 0.4em; }
+`;
+
+interface EpubChapter {
+  id: string;
+  title: string;
+  html: string;
 }
 
-const HEADING_PATTERNS = [
-  /^(chapter\s+\d+[.:)—\-\s]*.*)/i,
-  /^(chapter\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)[.:)—\-\s]*.*)/i,
-  /^(part\s+\d+[.:)—\-\s]*.*)/i,
-  /^(part\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)[.:)—\-\s]*.*)/i,
-  /^(prologue|epilogue|introduction|preface|foreword|afterword|acknowledgments|appendix|conclusion)/i,
-  /^(section\s+\d+[.:)—\-\s]*.*)/i,
-  /^([IVXLCDM]+\.\s+.{3,})/,
-];
+function splitIntoChapters(html: string, bookTitle: string): EpubChapter[] {
+  // Split on <h1> or <h2> tags to create chapters
+  const headingRegex = /<h([12])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  const splits: { index: number; title: string }[] = [];
 
-function postProcessEpubHtml(html: string): string {
-  let result = html;
+  let match;
+  while ((match = headingRegex.exec(html)) !== null) {
+    const title = match[2].replace(/<[^>]+>/g, "").trim();
+    if (title) splits.push({ index: match.index, title });
+  }
 
-  result = result.replace(
-    /<p\b([^>]*)>\s*(?:<a\s+id="[^"]*"><\/a>\s*)?<b\b[^>]*>(.*?)<\/b>\s*([\s\S]*?)<\/p>/gi,
-    (match, pAttrs, boldText, trailing) => {
-      const trimmedBold = boldText.trim();
-      const isHeading = HEADING_PATTERNS.some(p => p.test(trimmedBold));
-      const isShortBoldOnly = trimmedBold.length < 100 && trimmedBold.length > 1;
+  if (splits.length === 0) {
+    // No headings found — treat entire content as one chapter
+    return [{ id: "chapter-1", title: bookTitle, html }];
+  }
 
-      if (isHeading || (isShortBoldOnly && !trailing.trim())) {
-        const tag = /^(part\s)/i.test(trimmedBold) ? "h1" : "h2";
-        const anchorMatch = match.match(/<a\s+id="([^"]*)"><\/a>/);
-        const anchor = anchorMatch ? `<a id="${anchorMatch[1]}"></a>` : "";
-        let output = `${anchor}<${tag} class="calibre-heading">${trimmedBold}</${tag}>`;
-        if (trailing.trim()) {
-          output += `\n<p${pAttrs}>${trailing.trim()}</p>`;
-        }
-        return output;
-      }
-
-      return match;
-    }
-  );
-
-  result = result.replace(
-    /<p\b([^>]*)>\s*(?:<a\s+id="[^"]*"><\/a>\s*)?<b\b[^>]*>(.*?)<\/b>\s*<\/p>/gi,
-    (match, pAttrs, boldText) => {
-      const trimmedBold = boldText.trim();
-      if (trimmedBold.length >= 2 && trimmedBold.length <= 80) {
-        const isHeading = HEADING_PATTERNS.some(p => p.test(trimmedBold));
-        if (isHeading) {
-          const tag = /^(part\s)/i.test(trimmedBold) ? "h1" : "h2";
-          const anchorMatch = match.match(/<a\s+id="([^"]*)"><\/a>/);
-          const anchor = anchorMatch ? `<a id="${anchorMatch[1]}"></a>` : "";
-          return `${anchor}<${tag} class="calibre-heading">${trimmedBold}</${tag}>`;
-        }
-      }
-      return match;
-    }
-  );
-
-  if (result.includes('calibre-heading')) {
-    const headingCSS = `
-.calibre-heading {
-  font-size: 1.4em;
-  font-weight: bold;
-  margin: 1.5em 0 0.8em 0;
-  line-height: 1.3;
-  page-break-before: always;
-}
-h1.calibre-heading {
-  font-size: 1.6em;
-  text-align: center;
-  margin: 2em 0 1em 0;
-}`;
-    if (/<\/style>/i.test(result)) {
-      result = result.replace(/<\/style>/i, `${headingCSS}\n</style>`);
-    } else if (/<\/head>/i.test(result)) {
-      result = result.replace(/<\/head>/i, `<style type="text/css">${headingCSS}\n</style>\n</head>`);
+  const chapters: EpubChapter[] = [];
+  // Content before first heading
+  if (splits[0].index > 0) {
+    const preContent = html.slice(0, splits[0].index).trim();
+    if (preContent.length > 50) {
+      chapters.push({ id: "chapter-0", title: "Preface", html: preContent });
     }
   }
 
-  result = result.replace(/(<\/p>\s*<p)/gi, '$1');
-
-  return result;
-}
-
-async function postProcessEpub(epubPath: string): Promise<void> {
-  const tmpDir = epubPath + "_tmp";
-  try {
-    await execFileAsync("unzip", ["-o", epubPath, "-d", tmpDir], {
-      timeout: 30000,
+  for (let i = 0; i < splits.length; i++) {
+    const start = splits[i].index;
+    const end = i + 1 < splits.length ? splits[i + 1].index : html.length;
+    chapters.push({
+      id: `chapter-${chapters.length + 1}`,
+      title: splits[i].title,
+      html: html.slice(start, end).trim(),
     });
-
-    const walkDir = (dir: string): string[] => {
-      let files: string[] = [];
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          files = files.concat(walkDir(fullPath));
-        } else if (/\.(html|xhtml|htm)$/i.test(entry.name)) {
-          files.push(fullPath);
-        }
-      }
-      return files;
-    };
-
-    const htmlFiles = walkDir(tmpDir);
-    let modified = false;
-
-    for (const htmlFile of htmlFiles) {
-      const content = fs.readFileSync(htmlFile, "utf8");
-      const processed = postProcessEpubHtml(content);
-      if (processed !== content) {
-        fs.writeFileSync(htmlFile, processed, "utf8");
-        modified = true;
-      }
-    }
-
-    if (modified) {
-      fs.unlinkSync(epubPath);
-      const mimetypePath = path.join(tmpDir, "mimetype");
-      await execFileAsync("bash", ["-c",
-        `cd "${tmpDir}" && zip -0 -X "${epubPath}" mimetype && zip -r -X "${epubPath}" . -x mimetype`
-      ], { timeout: 30000 });
-      logger.info("Conversion: Post-processed EPUB HTML for better formatting");
-    }
-  } catch (err: any) {
-    logger.warn(`Post-processing failed (non-fatal): ${err.message?.slice(0, 200)}`);
-  } finally {
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch (_) {}
   }
+
+  return chapters;
 }
+
+function buildXhtml(title: string, bodyHtml: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>${escapeXml(title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body>
+${bodyHtml}
+</body>
+</html>`;
+}
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function buildContentOpf(bookId: string, title: string, author: string, chapters: EpubChapter[]): string {
+  const items = chapters.map(ch => `    <item id="${ch.id}" href="${ch.id}.xhtml" media-type="application/xhtml+xml"/>`).join("\n");
+  const refs = chapters.map(ch => `    <itemref idref="${ch.id}"/>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:${bookId}</dc:identifier>
+    <dc:title>${escapeXml(title)}</dc:title>
+    <dc:creator>${escapeXml(author)}</dc:creator>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z$/, "Z")}</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="style" href="style.css" media-type="text/css"/>
+${items}
+  </manifest>
+  <spine>
+${refs}
+  </spine>
+</package>`;
+}
+
+function buildNavXhtml(title: string, chapters: EpubChapter[]): string {
+  const lis = chapters.map(ch => `      <li><a href="${ch.id}.xhtml">${escapeXml(ch.title)}</a></li>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<head><title>${escapeXml(title)}</title></head>
+<body>
+  <nav epub:type="toc">
+    <h1>Table of Contents</h1>
+    <ol>
+${lis}
+    </ol>
+  </nav>
+</body>
+</html>`;
+}
+
+async function buildEpubFile(outputPath: string, bookId: string, title: string, author: string, chapters: EpubChapter[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(outputPath);
+    const archive = archiver("zip", { zlib: { level: 9 } });
+
+    output.on("close", resolve);
+    archive.on("error", reject);
+    archive.pipe(output);
+
+    // mimetype must be first entry, uncompressed
+    archive.append("application/epub+zip", { name: "mimetype", store: true });
+
+    // META-INF/container.xml
+    archive.append(`<?xml version="1.0" encoding="UTF-8"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`, { name: "META-INF/container.xml" });
+
+    // OEBPS/content.opf
+    archive.append(buildContentOpf(bookId, title, author, chapters), { name: "OEBPS/content.opf" });
+
+    // OEBPS/nav.xhtml
+    archive.append(buildNavXhtml(title, chapters), { name: "OEBPS/nav.xhtml" });
+
+    // OEBPS/style.css
+    archive.append(EPUB_CSS, { name: "OEBPS/style.css" });
+
+    // OEBPS/chapter-N.xhtml
+    for (const ch of chapters) {
+      archive.append(buildXhtml(ch.title, ch.html), { name: `OEBPS/${ch.id}.xhtml` });
+    }
+
+    archive.finalize();
+  });
+}
+
+// ── Convert DOCX/HTML/TXT to HTML ──────────────────────────────────────────
+
+async function convertToHtml(inputPath: string, format: string): Promise<string> {
+  if (format === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    const result = await mammoth.convertToHtml({ path: inputPath });
+    if (result.messages.length > 0) {
+      logger.info(`Mammoth messages: ${result.messages.map(m => m.message).join("; ").slice(0, 300)}`);
+    }
+    return result.value;
+  }
+
+  if (format === "text/html") {
+    return fs.readFileSync(inputPath, "utf-8");
+  }
+
+  if (format === "text/plain") {
+    const text = fs.readFileSync(inputPath, "utf-8");
+    return text
+      .split(/\n{2,}/)
+      .map(para => `<p>${para.replace(/\n/g, "<br/>")}</p>`)
+      .join("\n");
+  }
+
+  throw new Error(`Unsupported format for conversion: ${format}`);
+}
+
+// ── Main conversion logic ───────────────────────────────────────────────────
+
+const SUPPORTED_FORMATS = new Set([
+  "application/epub+zip",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/html",
+  "text/plain",
+]);
 
 export async function convertToEpub(bookId: string): Promise<void> {
   if (activeConversions.has(bookId)) {
@@ -246,9 +291,20 @@ async function doConvertToEpub(bookId: string): Promise<void> {
     return;
   }
 
+  if (!SUPPORTED_FORMATS.has(book.originalFormat || "")) {
+    logger.error(`Conversion: Unsupported format "${book.originalFormat}" for book ${bookId}`);
+    await storage.updateBook(bookId, { conversionStatus: "failed" });
+    return;
+  }
+
   await storage.updateBook(bookId, { conversionStatus: "processing" });
 
-  const inputExt = getInputExtension(book.originalFormat || "application/pdf");
+  const extMap: Record<string, string> = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "text/html": ".html",
+    "text/plain": ".txt",
+  };
+  const inputExt = extMap[book.originalFormat || ""] || ".bin";
   const inputPath = path.join(CONVERSION_DIR, `${bookId}${inputExt}`);
   const outputPath = path.join(CONVERSION_DIR, `${bookId}.epub`);
 
@@ -261,48 +317,12 @@ async function doConvertToEpub(bookId: string): Promise<void> {
     logger.info(`Conversion: Downloading original file for book ${bookId}...`);
     await downloadFromObjectStorage(book.originalFileUrl, inputPath);
 
-    logger.info(`Conversion: Converting ${inputExt} to EPUB for book ${bookId}...`);
+    logger.info(`Conversion: Converting ${inputExt} to EPUB for book ${bookId} (mammoth/archiver)...`);
+    const html = await convertToHtml(inputPath, book.originalFormat || "");
+    const chapters = splitIntoChapters(html, book.title);
 
-    const calibreArgs = [
-      inputPath,
-      outputPath,
-      "--title", book.title,
-      "--authors", book.author,
-      "--language", "en",
-      "--no-default-epub-cover",
-      "--enable-heuristics",
-    ];
-
-    if (inputExt === ".pdf") {
-      calibreArgs.push("--unwrap-factor", "0.45");
-    }
-
-    try {
-      await execFileAsync("ebook-convert", calibreArgs, {
-        timeout: 300000,
-        maxBuffer: 50 * 1024 * 1024,
-      });
-    } catch (calibreErr: any) {
-      const stderr = calibreErr.stderr?.slice(0, 500) || "";
-      const stdout = calibreErr.stdout?.slice(0, 500) || "";
-      logger.warn(`Calibre conversion failed for book ${bookId}: ${calibreErr.message?.slice(0, 300)}`);
-      if (stderr) logger.warn(`Calibre stderr: ${stderr}`);
-      if (stdout) logger.warn(`Calibre stdout: ${stdout}`);
-
-      if (inputExt === ".pdf") {
-        throw new Error(`PDF conversion failed: ${calibreErr.message?.slice(0, 200)}`);
-      }
-
-      await execFileAsync("pandoc", [
-        inputPath,
-        "-o", outputPath,
-        "--metadata", `title=${book.title}`,
-        "--metadata", `author=${book.author}`,
-      ], {
-        timeout: 300000,
-        maxBuffer: 50 * 1024 * 1024,
-      });
-    }
+    logger.info(`Conversion: Building EPUB with ${chapters.length} chapter(s) for book ${bookId}...`);
+    await buildEpubFile(outputPath, bookId, book.title, book.author, chapters);
 
     if (!fs.existsSync(outputPath)) {
       throw new Error("Conversion produced no output file");
@@ -313,13 +333,7 @@ async function doConvertToEpub(bookId: string): Promise<void> {
       throw new Error("Conversion produced an empty or invalid EPUB");
     }
 
-    if (inputExt === ".pdf") {
-      logger.info(`Conversion: Post-processing EPUB for book ${bookId}...`);
-      await postProcessEpub(outputPath);
-    }
-
-    const finalSize = fs.statSync(outputPath).size;
-    logger.info(`Conversion: Uploading EPUB for book ${bookId} (${(finalSize / 1024).toFixed(1)} KB)...`);
+    logger.info(`Conversion: Uploading EPUB for book ${bookId} (${(epubSize / 1024).toFixed(1)} KB)...`);
     const epubObjectPath = await uploadToObjectStorage(outputPath, "application/epub+zip");
 
     await storage.updateBook(bookId, {
@@ -328,7 +342,7 @@ async function doConvertToEpub(bookId: string): Promise<void> {
     });
 
     logger.info(`Conversion: Book ${bookId} conversion completed successfully`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error({ err: error }, `Conversion: Failed for book ${bookId}`);
     await storage.updateBook(bookId, {
       conversionStatus: "failed",

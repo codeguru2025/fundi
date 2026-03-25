@@ -8,12 +8,12 @@ import { logger } from "../index";
 
 const lessonSchema = z.object({
   title: z.string().min(1, "Lesson title is required"),
-  contentType: z.enum(["video", "text", "image"]).optional(),
+  contentType: z.enum(["video", "text", "image", "presentation", "infographic"]).optional(),
   videoUrl: z.string().nullable().optional(),
   textContent: z.string().nullable().optional(),
   imageUrl: z.string().nullable().optional(),
   voiceoverUrl: z.string().nullable().optional(),
-  duration: z.number().nullable().optional(),
+  duration: z.union([z.number(), z.string()]).nullable().optional(),
   isFreePreview: z.boolean().optional(),
 });
 
@@ -140,7 +140,10 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
       if (!user) return res.status(401).json({ error: "User not found" });
       const userIsAdmin = user.isAdmin === true;
       const parsed = createCourseSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: "Invalid course data", details: parsed.error.flatten().fieldErrors });
+      if (!parsed.success) {
+        logger.warn({ fields: parsed.error.flatten().fieldErrors }, "Course creation validation failed");
+        return res.status(400).json({ error: "Invalid course data", details: parsed.error.flatten().fieldErrors });
+      }
       const { title, description, price, category, level, cover, modules: courseModules, labs: courseLabs, certificateFee, paymentConfirmed, instructorId, instructorName, isActive, subscriptionActive, uploadFeePaid, totalLessons: clientTotalLessons, totalDuration } = parsed.data;
       const contentCount = await storage.getUserContentCount(userId);
       const isFirst = contentCount === 0;

@@ -1061,6 +1061,31 @@ export default function CreateCourse() {
                                         }}
                                         onClose={() => setShowRecorder(null)}
                                       />
+                                    ) : lesson.videoUrl ? (
+                                      <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Video Preview</Label>
+                                        <div className="rounded-lg overflow-hidden border bg-black aspect-video">
+                                          <video
+                                            key={lesson.videoUrl}
+                                            src={lesson.videoUrl}
+                                            className="w-full h-full"
+                                            controls
+                                            preload="metadata"
+                                            playsInline
+                                          />
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1"
+                                            onClick={() => updateLesson(mi, li, { videoUrl: "" })}
+                                          >
+                                            <Trash2 className="w-3 h-3" /> Remove & Replace
+                                          </Button>
+                                        </div>
+                                      </div>
                                     ) : (
                                       <>
                                         <div>
