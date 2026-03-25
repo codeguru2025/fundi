@@ -21,6 +21,7 @@ const EXEMPT_PATHS = [
   "/api/payments/callback",
   "/api/certificates/payments/callback",
   "/api/cron/",
+  "/api/analytics/track",
 ];
 
 function isExempt(path: string): boolean {
