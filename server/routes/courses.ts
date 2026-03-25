@@ -49,9 +49,17 @@ const createCourseSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0).optional(),
   category: z.string().optional(),
+  level: z.string().optional(),
   cover: z.string().nullable().optional(),
   certificateFee: z.union([z.number(), z.string()]).optional(),
   paymentConfirmed: z.boolean().optional(),
+  instructorId: z.string().optional(),
+  instructorName: z.string().optional(),
+  isActive: z.boolean().optional(),
+  subscriptionActive: z.boolean().optional(),
+  uploadFeePaid: z.boolean().optional(),
+  totalLessons: z.number().optional(),
+  totalDuration: z.string().nullable().optional(),
   modules: z.array(moduleSchema).optional(),
   labs: z.array(labSchema).optional(),
 });
@@ -133,7 +141,7 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
       const userIsAdmin = user.isAdmin === true;
       const parsed = createCourseSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid course data", details: parsed.error.flatten().fieldErrors });
-      const { title, description, price, category, cover, modules: courseModules, labs: courseLabs, certificateFee, paymentConfirmed } = parsed.data;
+      const { title, description, price, category, level, cover, modules: courseModules, labs: courseLabs, certificateFee, paymentConfirmed, instructorId, instructorName, isActive, subscriptionActive, uploadFeePaid, totalLessons: clientTotalLessons, totalDuration } = parsed.data;
       const contentCount = await storage.getUserContentCount(userId);
       const isFirst = contentCount === 0;
       if (!userIsAdmin && !isFirst) {
@@ -146,12 +154,21 @@ export function registerCourseRoutes(app: Express, _httpServer: Server): void {
       const { courses: coursesTable, modules: modulesTable, lessons: lessonsTable, quizzes: quizzesTable, quizQuestions: quizQuestionsTable, labs: labsTable } = await import("@shared/schema");
       const course = await db.transaction(async (tx: any) => {
         const [newCourse] = await tx.insert(coursesTable).values({
-          title, instructorId: userId,
-          instructorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Instructor',
-          description, price: price || 29.99, category: category || 'Business', cover,
-          isApproved: userIsAdmin, isActive: true, subscriptionActive: true,
+          title,
+          instructorId: instructorId || userId,
+          instructorName: instructorName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Instructor',
+          description,
+          price: price || 29.99,
+          category: category || 'Business',
+          level: level || 'Certificate',
+          cover,
+          isApproved: userIsAdmin,
+          isActive: isActive !== false,
+          subscriptionActive: subscriptionActive !== false,
           subscriptionExpiresAt: userIsAdmin ? null : oneMonthFromNow,
-          uploadFeePaid: true, totalLessons,
+          uploadFeePaid: uploadFeePaid !== false,
+          totalLessons: clientTotalLessons !== undefined ? clientTotalLessons : totalLessons,
+          totalDuration: totalDuration || null,
           certificateFee: certificateFee != null ? parseFloat(String(certificateFee)) : DEFAULT_CERTIFICATE_FEE,
         }).returning();
         if (courseModules && Array.isArray(courseModules)) {
