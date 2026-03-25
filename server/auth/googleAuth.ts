@@ -149,7 +149,13 @@ export async function setupGoogleAuth(app: Express) {
       if (err) {
         logger.error({ err }, "Logout error");
       }
-      res.json({ success: true });
+      req.session.destroy((destroyErr) => {
+        if (destroyErr) {
+          logger.error({ err: destroyErr }, "Session destroy error");
+        }
+        res.clearCookie("connect.sid");
+        res.json({ success: true });
+      });
     });
   });
 
@@ -161,7 +167,13 @@ export async function setupGoogleAuth(app: Express) {
       if (err) {
         logger.error({ err }, "Logout error");
       }
-      res.redirect("/");
+      req.session.destroy((destroyErr) => {
+        if (destroyErr) {
+          logger.error({ err: destroyErr }, "Session destroy error");
+        }
+        res.clearCookie("connect.sid");
+        res.redirect("/");
+      });
     });
   });
 

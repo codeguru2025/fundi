@@ -110,11 +110,11 @@ export default function Store() {
                   viewport={{ once: true }}
                   whileHover={{ y: -5 }}
                 >
-                  <div className="relative aspect-[2/3] mb-4 rounded-md overflow-hidden shadow-sm transition-all group-hover:shadow-xl group-hover:shadow-primary/10">
+                  <div className="relative aspect-[2/3] mb-4 rounded-md overflow-hidden shadow-sm transition-all group-hover:shadow-xl group-hover:shadow-primary/10 bg-gradient-to-br from-stone-100 to-stone-200">
                     <img 
                       src={book.cover || "https://images.unsplash.com/photo-1621944190610-a9607d46610c?q=80&w=2670&auto=format&fit=crop"} 
                       alt={book.title} 
-                      className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
+                      className="object-contain w-full h-full p-2 transition-transform duration-500 group-hover:scale-105"
                     />
                     {book.bestseller && (
                       <Badge className="absolute top-3 left-3 bg-yellow-500/90 hover:bg-yellow-500 text-white border-0 backdrop-blur-sm">

@@ -173,7 +173,7 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
   y -= 38;
 
   drawCenteredText(page, data.studentName, y, timesRomanBold, 30, navy);
-  y -= 28;
+  y -= 18;
 
   const nameLineWidth = Math.max(280, timesRomanBold.widthOfTextAtSize(data.studentName, 30) + 40);
   page.drawLine({
@@ -181,7 +181,7 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
     end: { x: (pageWidth + nameLineWidth) / 2, y },
     thickness: 1.5, color: gold,
   });
-  y -= 28;
+  y -= 22;
 
   drawCenteredText(page, "has successfully completed the course", y, timesRomanItalic, 12, medGray);
   y -= 38;
@@ -198,7 +198,7 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
   y -= 22;
 
   drawCenteredText(page, `Instructor: ${data.instructorName}`, y, timesRomanItalic, 11, medGray);
-  y -= 55;
+  y -= 10;
 
   const footerY = y;
   const leftCol = 75;
@@ -213,16 +213,19 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
     thickness: 0.5, color: gold,
   });
 
+  // Signature block: position below footer baseline
+  const sigBlockTop = footerY - 8;
+
   try {
     const sigBytes = getSignatureBytes();
     const sigImage = await pdfDoc.embedPng(sigBytes);
     const sigDims = sigImage.scale(1);
-    const sigDisplayWidth = 120;
+    const sigDisplayWidth = 90;
     const sigDisplayHeight = (sigDims.height / sigDims.width) * sigDisplayWidth;
 
     page.drawImage(sigImage, {
       x: centerCol - sigDisplayWidth / 2,
-      y: footerY + 5,
+      y: sigBlockTop - sigDisplayHeight,
       width: sigDisplayWidth,
       height: sigDisplayHeight,
     });
@@ -230,25 +233,26 @@ export async function generateCertificatePDF(data: CertificateData): Promise<Buf
     logger.error({ err }, "Signature embed error");
   }
 
+  const founderNameY = sigBlockTop - 65;
   const founderNameWidth = timesRomanBold.widthOfTextAtSize(FOUNDER_NAME, 12);
   page.drawText(FOUNDER_NAME, {
     x: centerCol - founderNameWidth / 2,
-    y: footerY - 8,
+    y: founderNameY,
     size: 12,
     font: timesRomanBold,
     color: navy,
   });
 
   page.drawLine({
-    start: { x: centerCol - 85, y: footerY - 12 },
-    end: { x: centerCol + 85, y: footerY - 12 },
+    start: { x: centerCol - 85, y: founderNameY - 4 },
+    end: { x: centerCol + 85, y: founderNameY - 4 },
     thickness: 0.5, color: gold,
   });
 
   const titleWidth = helvetica.widthOfTextAtSize(FOUNDER_TITLE, 8);
   page.drawText(FOUNDER_TITLE, {
     x: centerCol - titleWidth / 2,
-    y: footerY - 24,
+    y: founderNameY - 16,
     size: 8,
     font: helvetica,
     color: medGray,

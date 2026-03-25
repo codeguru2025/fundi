@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { csrfHeaders } from "@/lib/csrf";
 import type { User } from "@shared/schema";
 
 async function fetchUser(): Promise<User | null> {
@@ -18,7 +19,7 @@ async function fetchUser(): Promise<User | null> {
 }
 
 async function logout(): Promise<void> {
-  await fetch("/api/logout", { method: "POST", credentials: "include" });
+  await fetch("/api/logout", { method: "POST", headers: csrfHeaders(), credentials: "include" });
   window.location.href = "/";
 }
 

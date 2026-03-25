@@ -72,15 +72,38 @@ export async function uploadFileDataToStorage(base64Data: string, contentType: s
 // ── EPUB builder (pure Node.js — no external binaries) ──────────────────────
 
 const EPUB_CSS = `
-body { font-family: Georgia, serif; line-height: 1.6; margin: 1em; }
-h1 { font-size: 1.6em; text-align: center; margin: 2em 0 1em; page-break-before: always; }
-h2 { font-size: 1.3em; margin: 1.5em 0 0.8em; page-break-before: always; }
-h3 { font-size: 1.1em; margin: 1.2em 0 0.6em; }
-p { margin: 0.5em 0; text-indent: 1.5em; }
-img { max-width: 100%; }
-table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-td, th { border: 1px solid #ccc; padding: 0.4em; }
+body { font-family: Georgia, serif; line-height: 1.7; margin: 1em 1.2em; color: #1a1a1a; }
+h1 { font-size: 1.6em; text-align: center; margin: 2em 0 1em; page-break-before: always; font-weight: bold; }
+h2 { font-size: 1.35em; margin: 1.5em 0 0.8em; page-break-before: always; font-weight: bold; }
+h3 { font-size: 1.15em; margin: 1.2em 0 0.6em; font-weight: bold; }
+h4 { font-size: 1.05em; margin: 1em 0 0.5em; font-weight: bold; }
+p { margin: 0.6em 0; text-indent: 1.5em; text-align: justify; }
+p.no-indent { text-indent: 0; }
+blockquote { margin: 1em 2em; padding-left: 1em; border-left: 3px solid #ccc; font-style: italic; }
+img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
+figure { margin: 1.5em 0; text-align: center; page-break-inside: avoid; }
+figure img { margin: 0 auto; }
+figcaption { font-size: 0.85em; color: #555; margin-top: 0.5em; font-style: italic; }
+table { border-collapse: collapse; width: 100%; margin: 1em 0; page-break-inside: avoid; }
+td, th { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
+th { font-weight: bold; background: #f5f5f5; }
+ul, ol { margin: 0.8em 0; padding-left: 2em; }
+li { margin: 0.3em 0; }
+.text-center { text-align: center; text-indent: 0; }
+.text-right { text-align: right; text-indent: 0; }
+strong, b { font-weight: bold; }
+em, i { font-style: italic; }
+sup { vertical-align: super; font-size: 0.75em; }
+sub { vertical-align: sub; font-size: 0.75em; }
+hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
 `;
+
+interface EpubImage {
+  id: string;
+  filename: string;
+  contentType: string;
+  buffer: Buffer;
+}
 
 interface EpubChapter {
   id: string;
@@ -141,8 +164,10 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function buildContentOpf(bookId: string, title: string, author: string, chapters: EpubChapter[]): string {
-  const items = chapters.map(ch => `    <item id="${ch.id}" href="${ch.id}.xhtml" media-type="application/xhtml+xml"/>`).join("\n");
+function buildContentOpf(bookId: string, title: string, author: string, chapters: EpubChapter[], images: EpubImage[]): string {
+  const chapterItems = chapters.map(ch => `    <item id="${ch.id}" href="${ch.id}.xhtml" media-type="application/xhtml+xml"/>`).join("\n");
+  const imageItems = images.map(img => `    <item id="${img.id}" href="images/${img.filename}" media-type="${img.contentType}"/>`).join("\n");
+  const items = chapterItems + (imageItems ? "\n" + imageItems : "");
   const refs = chapters.map(ch => `    <itemref idref="${ch.id}"/>`).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
@@ -181,7 +206,7 @@ ${lis}
 </html>`;
 }
 
-async function buildEpubFile(outputPath: string, bookId: string, title: string, author: string, chapters: EpubChapter[]): Promise<void> {
+async function buildEpubFile(outputPath: string, bookId: string, title: string, author: string, chapters: EpubChapter[], images: EpubImage[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(outputPath);
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -202,7 +227,7 @@ async function buildEpubFile(outputPath: string, bookId: string, title: string, 
 </container>`, { name: "META-INF/container.xml" });
 
     // OEBPS/content.opf
-    archive.append(buildContentOpf(bookId, title, author, chapters), { name: "OEBPS/content.opf" });
+    archive.append(buildContentOpf(bookId, title, author, chapters, images), { name: "OEBPS/content.opf" });
 
     // OEBPS/nav.xhtml
     archive.append(buildNavXhtml(title, chapters), { name: "OEBPS/nav.xhtml" });
@@ -215,31 +240,89 @@ async function buildEpubFile(outputPath: string, bookId: string, title: string, 
       archive.append(buildXhtml(ch.title, ch.html), { name: `OEBPS/${ch.id}.xhtml` });
     }
 
+    // OEBPS/images/*
+    for (const img of images) {
+      archive.append(img.buffer, { name: `OEBPS/images/${img.filename}` });
+    }
+
     archive.finalize();
   });
 }
 
 // ── Convert DOCX/HTML/TXT to HTML ──────────────────────────────────────────
 
-async function convertToHtml(inputPath: string, format: string): Promise<string> {
+interface ConversionResult {
+  html: string;
+  images: EpubImage[];
+}
+
+function getImageExtension(contentType: string): string {
+  const map: Record<string, string> = {
+    "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif",
+    "image/svg+xml": "svg", "image/bmp": "bmp", "image/tiff": "tiff",
+    "image/webp": "webp",
+  };
+  return map[contentType] || "png";
+}
+
+async function convertToHtml(inputPath: string, format: string): Promise<ConversionResult> {
   if (format === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-    const result = await mammoth.convertToHtml({ path: inputPath });
+    const images: EpubImage[] = [];
+    let imageCounter = 0;
+
+    const result = await mammoth.convertToHtml(
+      { path: inputPath },
+      {
+        styleMap: [
+          "p[style-name='Title'] => h1.doc-title:fresh",
+          "p[style-name='Subtitle'] => h2.doc-subtitle:fresh",
+          "p[style-name='Heading 1'] => h1:fresh",
+          "p[style-name='Heading 2'] => h2:fresh",
+          "p[style-name='Heading 3'] => h3:fresh",
+          "p[style-name='Heading 4'] => h4:fresh",
+          "p[style-name='Quote'] => blockquote > p:fresh",
+          "p[style-name='Block Text'] => blockquote > p:fresh",
+          "p[style-name='List Paragraph'] => li:fresh",
+          "r[style-name='Strong'] => strong",
+          "r[style-name='Emphasis'] => em",
+        ],
+        convertImage: mammoth.images.imgElement(async (image) => {
+          const imageBuffer = await image.read();
+          const ext = getImageExtension(image.contentType);
+          imageCounter++;
+          const filename = `image-${imageCounter}.${ext}`;
+          const id = `img-${imageCounter}`;
+
+          images.push({
+            id,
+            filename,
+            contentType: image.contentType,
+            buffer: Buffer.from(imageBuffer),
+          });
+
+          return { src: `images/${filename}` };
+        }),
+      }
+    );
+
     if (result.messages.length > 0) {
       logger.info(`Mammoth messages: ${result.messages.map(m => m.message).join("; ").slice(0, 300)}`);
     }
-    return result.value;
+
+    return { html: result.value, images };
   }
 
   if (format === "text/html") {
-    return fs.readFileSync(inputPath, "utf-8");
+    return { html: fs.readFileSync(inputPath, "utf-8"), images: [] };
   }
 
   if (format === "text/plain") {
     const text = fs.readFileSync(inputPath, "utf-8");
-    return text
+    const html = text
       .split(/\n{2,}/)
       .map(para => `<p>${para.replace(/\n/g, "<br/>")}</p>`)
       .join("\n");
+    return { html, images: [] };
   }
 
   throw new Error(`Unsupported format for conversion: ${format}`);
@@ -318,11 +401,11 @@ async function doConvertToEpub(bookId: string): Promise<void> {
     await downloadFromObjectStorage(book.originalFileUrl, inputPath);
 
     logger.info(`Conversion: Converting ${inputExt} to EPUB for book ${bookId} (mammoth/archiver)...`);
-    const html = await convertToHtml(inputPath, book.originalFormat || "");
+    const { html, images } = await convertToHtml(inputPath, book.originalFormat || "");
     const chapters = splitIntoChapters(html, book.title);
 
-    logger.info(`Conversion: Building EPUB with ${chapters.length} chapter(s) for book ${bookId}...`);
-    await buildEpubFile(outputPath, bookId, book.title, book.author, chapters);
+    logger.info(`Conversion: Building EPUB with ${chapters.length} chapter(s) and ${images.length} image(s) for book ${bookId}...`);
+    await buildEpubFile(outputPath, bookId, book.title, book.author, chapters, images);
 
     if (!fs.existsSync(outputPath)) {
       throw new Error("Conversion produced no output file");

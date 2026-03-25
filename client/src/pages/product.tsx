@@ -128,11 +128,11 @@ export default function Product() {
             animate={{ opacity: 1, x: 0 }}
             className="flex justify-center md:justify-end"
           >
-            <div className="relative w-full max-w-md aspect-[2/3] rounded-lg shadow-2xl book-shadow overflow-hidden">
+            <div className="relative w-full max-w-md aspect-[2/3] rounded-lg shadow-2xl book-shadow overflow-hidden bg-gradient-to-br from-stone-100 to-stone-200">
               <img 
                 src={displayBook.cover || "https://images.unsplash.com/photo-1621944190610-a9607d46610c?q=80&w=2670&auto=format&fit=crop"} 
                 alt={displayBook.title} 
-                className="object-cover w-full h-full" 
+                className="object-contain w-full h-full p-3" 
               />
             </div>
           </motion.div>
