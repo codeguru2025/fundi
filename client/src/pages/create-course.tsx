@@ -1151,6 +1151,7 @@ export default function CreateCourse() {
                                                             xhr.onerror = () => reject(new Error("Network error"));
                                                             xhr.open("PUT", uploadURL);
                                                             xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+                                                            xhr.setRequestHeader("x-amz-acl", "public-read");
                                                             xhr.send(file);
                                                           });
 

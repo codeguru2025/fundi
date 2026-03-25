@@ -254,6 +254,7 @@ export function VideoRecorder({ onVideoUploaded, onClose }: VideoRecorderProps) 
         xhr.onerror = () => reject(new Error("Network error"));
         xhr.open("PUT", uploadURL);
         xhr.setRequestHeader("Content-Type", recordedBlob.type || "video/webm");
+        xhr.setRequestHeader("x-amz-acl", "public-read");
         xhr.send(recordedBlob);
       });
     } catch (err: any) {

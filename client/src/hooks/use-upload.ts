@@ -93,6 +93,7 @@ export function useUpload(options: UseUploadOptions = {}) {
         body: file,
         headers: {
           "Content-Type": file.type || "application/octet-stream",
+          "x-amz-acl": "public-read",
         },
       });
 
@@ -179,7 +180,7 @@ export function useUpload(options: UseUploadOptions = {}) {
       return {
         method: "PUT",
         url: data.uploadURL,
-        headers: { "Content-Type": file.type || "application/octet-stream" },
+        headers: { "Content-Type": file.type || "application/octet-stream", "x-amz-acl": "public-read" },
       };
     },
     []

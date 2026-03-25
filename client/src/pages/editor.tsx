@@ -559,6 +559,7 @@ function PublishStep() {
         headers: {
           "Content-Type": manuscript.fileType,
           "Content-Length": String(blob.size),
+          "x-amz-acl": "public-read",
         },
       });
       if (!uploadRes.ok) throw new Error("File upload failed");
