@@ -39,7 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
             ) : isAuthenticated ? (
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
+                <Link href={`/profile/${user?.id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.profileImageUrl || undefined} />
                     <AvatarFallback className="text-xs">
@@ -47,7 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm hidden sm:inline">{user?.firstName || user?.email?.split('@')[0]}</span>
-                </div>
+                </Link>
                 <Button variant="ghost" size="sm" onClick={() => logout()} data-testid="button-logout">
                   <LogOut size={16} />
                 </Button>

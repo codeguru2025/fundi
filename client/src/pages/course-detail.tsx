@@ -279,7 +279,12 @@ export default function CourseDetail() {
               </Badge>
             )}
             <p className="text-xl text-muted-foreground mb-4 font-serif italic" data-testid="text-instructor">
-              by {course.instructorName || "Unknown Instructor"}
+              by{" "}
+              {course.instructorId ? (
+                <Link href={`/profile/${course.instructorId}`} className="text-primary hover:underline">{course.instructorName || "Unknown Instructor"}</Link>
+              ) : (
+                course.instructorName || "Unknown Instructor"
+              )}
             </p>
 
             <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">

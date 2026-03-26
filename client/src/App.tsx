@@ -25,6 +25,8 @@ const CourseDetail = lazy(() => import("@/pages/course-detail"));
 const CoursePlayer = lazy(() => import("@/pages/course-player"));
 const VerifyCertificate = lazy(() => import("@/pages/verify-certificate"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
+const PublicProfile = lazy(() => import("@/pages/public-profile"));
+const EditProfile = lazy(() => import("@/pages/edit-profile"));
 
 function PageLoader() {
   return (
@@ -53,6 +55,8 @@ function Router() {
       <Route path="/course/:id" component={CourseDetail} />
       <Route path="/edit-course/:id" component={CreateCourse} />
       <Route path="/create-course" component={CreateCourse} />
+      <Route path="/profile/:userId" component={PublicProfile} />
+      <Route path="/edit-profile" component={EditProfile} />
       <Route component={NotFound} />
     </Switch>
     </Suspense>

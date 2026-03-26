@@ -17,6 +17,7 @@ import { registerQuizRoutes } from "./routes/quizzes";
 import { registerLabRoutes } from "./routes/labs";
 import { registerCertificateRoutes } from "./routes/certificates";
 import { registerAnalyticsRoutes } from "./routes/analytics";
+import { registerProfileRoutes } from "./routes/profiles";
 
 // Ensure local uploads directory exists (used only as a temp buffer before Spaces upload)
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -125,6 +126,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerLabRoutes(app, httpServer);
   registerCertificateRoutes(app, httpServer);
   registerAnalyticsRoutes(app, httpServer);
+  registerProfileRoutes(app, httpServer);
 
   return httpServer;
 }

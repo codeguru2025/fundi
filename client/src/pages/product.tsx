@@ -152,7 +152,14 @@ export default function Product() {
             </div>
             
             <h1 className="text-4xl md:text-5xl font-serif font-bold text-primary mb-4">{displayBook.title}</h1>
-            <p className="text-xl text-muted-foreground mb-6 font-serif italic">by {displayBook.author}</p>
+            <p className="text-xl text-muted-foreground mb-6 font-serif italic">
+              by{" "}
+              {book.authorId ? (
+                <Link href={`/profile/${book.authorId}`} className="text-primary hover:underline">{displayBook.author}</Link>
+              ) : (
+                displayBook.author
+              )}
+            </p>
 
             <div className="flex items-center gap-4 mb-8">
               <div className="flex items-center text-yellow-500">

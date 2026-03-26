@@ -8,9 +8,11 @@ import {
   type Quiz, type InsertQuiz, type QuizQuestion, type InsertQuizQuestion,
   type QuizAttempt, type InsertQuizAttempt, type Lab, type InsertLab, type LabSubmission,
   type InsertPageView, type PageView,
+  type Review, type InsertReview,
   users, books, sales, settlements, paynowConfig, pendingPayments, purchases,
   courses, modules, lessons, coursePurchases, coursePendingPayments, lessonProgress,
-  quizzes, quizQuestions, quizAttempts, labs, labSubmissions, certificates, certificatePendingPayments, pageViews
+  quizzes, quizQuestions, quizAttempts, labs, labSubmissions, certificates, certificatePendingPayments, pageViews,
+  reviews
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, lte, gte, sql, inArray } from "drizzle-orm";
@@ -158,6 +160,20 @@ export interface IStorage {
   getAnalyticsCounts(): Promise<{ totalUsers: number; totalBooks: number; totalCourses: number; activeBooks: number; activeCourses: number }>;
   getBookCourseRevenueBreakdown(): Promise<{ bookRevenue: number; courseRevenue: number; bookCommission: number; courseCommission: number; bookSalesCount: number; courseSalesCount: number }>;
   getBookAnalytics(): Promise<{ books: any[]; summary: { totalBooks: number; activeBooks: number; totalSales: number; totalRevenue: number; totalCommission: number } }>;
+
+  // Review methods
+  getReviewsByUser(targetUserId: string): Promise<Review[]>;
+  getReviewsByContent(contentId: string): Promise<Review[]>;
+  createReview(data: InsertReview): Promise<Review>;
+  deleteReview(id: string): Promise<void>;
+  getAverageRating(targetUserId: string): Promise<number>;
+
+  // Public profile
+  getPublicProfile(userId: string): Promise<any>;
+
+  // Cleanup
+  deleteAllCourses(): Promise<void>;
+  deleteAllBooks(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1404,6 +1420,76 @@ export class DatabaseStorage implements IStorage {
     const [bookCount] = await db.select({ count: sql<number>`count(*)::int` }).from(books).where(eq(books.authorId, userId));
     const [courseCount] = await db.select({ count: sql<number>`count(*)::int` }).from(courses).where(eq(courses.instructorId, userId));
     return (bookCount?.count || 0) + (courseCount?.count || 0);
+  }
+
+  // Review methods
+  async getReviewsByUser(targetUserId: string): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.targetUserId, targetUserId)).orderBy(desc(reviews.createdAt));
+  }
+
+  async getReviewsByContent(contentId: string): Promise<Review[]> {
+    return db.select().from(reviews).where(eq(reviews.contentId, contentId)).orderBy(desc(reviews.createdAt));
+  }
+
+  async createReview(data: InsertReview): Promise<Review> {
+    const [review] = await db.insert(reviews).values(data).returning();
+    return review;
+  }
+
+  async deleteReview(id: string): Promise<void> {
+    await db.delete(reviews).where(eq(reviews.id, id));
+  }
+
+  async getAverageRating(targetUserId: string): Promise<number> {
+    const [result] = await db.select({ avg: sql<number>`coalesce(avg(rating), 0)::real` }).from(reviews).where(eq(reviews.targetUserId, targetUserId));
+    return result?.avg || 0;
+  }
+
+  async getPublicProfile(userId: string): Promise<any> {
+    const [user] = await db.select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      profileImageUrl: users.profileImageUrl,
+      bio: users.bio,
+      headline: users.headline,
+      experience: users.experience,
+      specialization: users.specialization,
+      website: users.website,
+      socialLinks: users.socialLinks,
+      createdAt: users.createdAt,
+    }).from(users).where(eq(users.id, userId));
+    if (!user) return null;
+
+    const userBooks = await db.select().from(books).where(and(eq(books.authorId, userId), eq(books.isApproved, true), eq(books.isActive, true)));
+    const userCourses = await db.select().from(courses).where(and(eq(courses.instructorId, userId), eq(courses.isApproved, true), eq(courses.isActive, true)));
+    const userReviews = await this.getReviewsByUser(userId);
+    const avgRating = await this.getAverageRating(userId);
+
+    return { ...user, books: userBooks, courses: userCourses, reviews: userReviews, averageRating: avgRating };
+  }
+
+  async deleteAllCourses(): Promise<void> {
+    await db.delete(lessonProgress);
+    await db.delete(certificatePendingPayments);
+    await db.delete(certificates);
+    await db.delete(coursePendingPayments);
+    await db.delete(coursePurchases);
+    await db.delete(quizAttempts);
+    await db.delete(quizQuestions);
+    await db.delete(quizzes);
+    await db.delete(labSubmissions);
+    await db.delete(labs);
+    await db.delete(lessons);
+    await db.delete(modules);
+    await db.delete(courses);
+  }
+
+  async deleteAllBooks(): Promise<void> {
+    await db.delete(pendingPayments);
+    await db.delete(purchases);
+    await db.delete(sales);
+    await db.delete(books);
   }
 
   async getBookCourseRevenueBreakdown(): Promise<{ bookRevenue: number; courseRevenue: number; bookCommission: number; courseCommission: number; bookSalesCount: number; courseSalesCount: number }> {

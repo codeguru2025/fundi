@@ -33,6 +33,13 @@ export const users = pgTable("users", {
   paynowIntegrationId: text("paynow_integration_id"),
   paynowIntegrationKey: text("paynow_integration_key"),
   firstFreeBookUsed: boolean("first_free_book_used").notNull().default(false),
+  // Profile fields
+  bio: text("bio"),
+  headline: text("headline"),
+  experience: text("experience"),
+  specialization: text("specialization"),
+  website: text("website"),
+  socialLinks: jsonb("social_links"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -459,3 +466,26 @@ export const pageViews = pgTable("page_views", {
 export const insertPageViewSchema = createInsertSchema(pageViews).omit({ id: true, createdAt: true });
 export type InsertPageView = z.infer<typeof insertPageViewSchema>;
 export type PageView = typeof pageViews.$inferSelect;
+
+// Reviews - users can review instructors/authors
+export const reviews = pgTable("reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reviewerId: varchar("reviewer_id").notNull(),
+  reviewerName: text("reviewer_name").notNull(),
+  reviewerImage: text("reviewer_image"),
+  targetUserId: varchar("target_user_id").notNull(),
+  targetType: text("target_type").notNull().default("instructor"), // instructor | author
+  contentId: varchar("content_id"), // courseId or bookId
+  contentTitle: text("content_title"),
+  rating: integer("rating").notNull().default(5),
+  comment: text("comment").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_reviews_target_user").on(table.targetUserId),
+  index("idx_reviews_reviewer").on(table.reviewerId),
+  index("idx_reviews_content").on(table.contentId),
+]);
+
+export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type Review = typeof reviews.$inferSelect;
