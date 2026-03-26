@@ -151,20 +151,14 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
         const user = await storage.getUser(userId);
         const course = await storage.getCourse(courseId);
         if (!course) return res.status(404).json({ error: "Course not found" });
-        let cert = await storage.getCertificate(courseId, userId);
-        if (!cert) {
-          cert = await storage.createCertificate({
-            courseId, userId,
-            userName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || "Student",
-            courseTitle: course.title, instructorName: course.instructorName,
-            verificationToken: "PENDING_" + crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase(),
-          });
-        }
         const realToken = crypto.randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase();
-        await storage.markCertificatePaid(courseId, userId, realToken);
-        const pendingPayments = await storage.getCertPendingPayments(courseId, userId);
-        for (const pp of pendingPayments) await storage.markCertPendingPaymentCompleted(pp.id);
-        res.json({ success: true, paid: true, certificate: await storage.getCertificate(courseId, userId) });
+        const cert = await storage.confirmCertificatePayment({
+          courseId, userId,
+          userName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || "Student",
+          courseTitle: course.title, instructorName: course.instructorName,
+          verificationToken: realToken,
+        });
+        res.json({ success: true, paid: true, certificate: cert });
       } else { res.json({ success: true, paid: false, status: status.status }); }
     } catch (error) { logger.error({ err: error }, "Certificate payment status check error"); res.status(500).json({ error: "Failed to check certificate payment status" }); }
   });
@@ -186,19 +180,13 @@ export function registerCertificateRoutes(app: Express, _httpServer: Server): vo
         const user = await storage.getUser(userId);
         const course = await storage.getCourse(courseId);
         if (course) {
-          let cert = await storage.getCertificate(courseId, userId);
-          if (!cert) {
-            cert = await storage.createCertificate({
-              courseId, userId,
-              userName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || "Student",
-              courseTitle: course.title, instructorName: course.instructorName,
-              verificationToken: "PENDING_" + crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase(),
-            });
-          }
           const realToken = crypto.randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase();
-          await storage.markCertificatePaid(courseId, userId, realToken);
-          const pendingPayments = await storage.getCertPendingPayments(courseId, userId);
-          for (const pp of pendingPayments) await storage.markCertPendingPaymentCompleted(pp.id);
+          await storage.confirmCertificatePayment({
+            courseId, userId,
+            userName: [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || "Student",
+            courseTitle: course.title, instructorName: course.instructorName,
+            verificationToken: realToken,
+          });
         }
       }
       res.send("OK");

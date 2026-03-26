@@ -138,6 +138,7 @@ export interface IStorage {
   createCertPendingPayment(data: { courseId: string; userId: string; email?: string; pollUrl: string; amount: number; paymentMethod?: string }): Promise<any>;
   getCertPendingPayments(courseId: string, userId: string): Promise<any[]>;
   markCertPendingPaymentCompleted(id: string): Promise<void>;
+  confirmCertificatePayment(params: { courseId: string; userId: string; userName: string; courseTitle: string; instructorName: string; verificationToken: string }): Promise<any>;
 
   getUserContentCount(userId: string): Promise<number>;
   getCoursePurchaseCount(courseId: string): Promise<number>;
@@ -943,6 +944,45 @@ export class DatabaseStorage implements IStorage {
       .where(eq(certificatePendingPayments.id, id));
   }
 
+  async confirmCertificatePayment(params: {
+    courseId: string; userId: string; userName: string;
+    courseTitle: string; instructorName: string; verificationToken: string;
+  }): Promise<any> {
+    return await db.transaction(async (tx) => {
+      // Get or create certificate
+      let [cert] = await tx.select().from(certificates)
+        .where(and(eq(certificates.courseId, params.courseId), eq(certificates.userId, params.userId)));
+
+      if (!cert) {
+        [cert] = await tx.insert(certificates).values({
+          courseId: params.courseId,
+          userId: params.userId,
+          userName: params.userName,
+          courseTitle: params.courseTitle,
+          instructorName: params.instructorName,
+          verificationToken: "PENDING_TEMP",
+        }).returning();
+      }
+
+      // Mark paid with real token
+      [cert] = await tx.update(certificates)
+        .set({ paid: true, verificationToken: params.verificationToken })
+        .where(and(eq(certificates.courseId, params.courseId), eq(certificates.userId, params.userId)))
+        .returning();
+
+      // Complete all pending payments for this cert
+      await tx.update(certificatePendingPayments)
+        .set({ status: "completed" })
+        .where(and(
+          eq(certificatePendingPayments.courseId, params.courseId),
+          eq(certificatePendingPayments.userId, params.userId),
+          eq(certificatePendingPayments.status, "pending")
+        ));
+
+      return cert;
+    });
+  }
+
   // Analytics methods
   async trackPageView(view: InsertPageView): Promise<PageView> {
     const [pv] = await db.insert(pageViews).values(view).returning();
@@ -1470,26 +1510,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteAllCourses(): Promise<void> {
-    await db.delete(lessonProgress);
-    await db.delete(certificatePendingPayments);
-    await db.delete(certificates);
-    await db.delete(coursePendingPayments);
-    await db.delete(coursePurchases);
-    await db.delete(quizAttempts);
-    await db.delete(quizQuestions);
-    await db.delete(quizzes);
-    await db.delete(labSubmissions);
-    await db.delete(labs);
-    await db.delete(lessons);
-    await db.delete(modules);
-    await db.delete(courses);
+    await db.transaction(async (tx) => {
+      await tx.delete(lessonProgress);
+      await tx.delete(certificatePendingPayments);
+      await tx.delete(certificates);
+      await tx.delete(coursePendingPayments);
+      await tx.delete(coursePurchases);
+      await tx.delete(quizAttempts);
+      await tx.delete(quizQuestions);
+      await tx.delete(quizzes);
+      await tx.delete(labSubmissions);
+      await tx.delete(labs);
+      await tx.delete(lessons);
+      await tx.delete(modules);
+      await tx.delete(courses);
+    });
   }
 
   async deleteAllBooks(): Promise<void> {
-    await db.delete(pendingPayments);
-    await db.delete(purchases);
-    await db.delete(sales);
-    await db.delete(books);
+    await db.transaction(async (tx) => {
+      await tx.delete(pendingPayments);
+      await tx.delete(purchases);
+      await tx.delete(sales);
+      await tx.delete(books);
+    });
   }
 
   async getBookCourseRevenueBreakdown(): Promise<{ bookRevenue: number; courseRevenue: number; bookCommission: number; courseCommission: number; bookSalesCount: number; courseSalesCount: number }> {
